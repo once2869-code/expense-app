@@ -197,7 +197,7 @@
 
           <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;"/>
           <h2 style="margin:0 0 6px; font-size:16px;">其他工作（直接給錢）</h2>
-          <div class="muted">不扣任何費用，你只填「本月收入金額」。</div>
+          <div class="muted">不扣任何費用，你只填「本月其他收入金額」。</div>
 
           <label>本月其他收入</label>
           <input id="ot_amount" type="number" min="0" step="1" placeholder="例如 8000" />
@@ -296,8 +296,7 @@
         </div>
       </div>
     </section>
-
-    <!-- ========== 設定 ========== -->
+        <!-- ========== 設定 ========== -->
     <section id="tab-settings" class="hide">
       <div class="card">
         <h2 style="margin:0 0 6px; font-size:16px;">勞保/就保設定（依法）</h2>
@@ -306,4 +305,513 @@
         <div class="row">
           <div>
             <label>勞保普通事故費率（預設 11.5%）</label>
-            <input id="set_li_rate" type="number" step="0.1"
+            <input id="set_li_rate" type="number" step="0.1" min="0" max="30" />
+          </div>
+          <div>
+            <label>就保費率（預設 1%）</label>
+            <input id="set_ei_rate" type="number" step="0.1" min="0" max="10" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>勞工自付比例（預設 20%）</label>
+            <input id="set_worker_share" type="number" step="1" min="0" max="100" />
+          </div>
+          <div>
+            <label>行政費（每次發薪扣）</label>
+            <input id="set_admin_fee" type="number" step="1" min="0" />
+          </div>
+        </div>
+
+        <button class="btn" id="set_save" style="margin-top:12px;">保存設定</button>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;"/>
+        <div class="muted">
+          小提醒：你若想做到「iPhone 跳通知提醒繳費」，我可以教你用 iPhone 的「提醒事項」或捷徑把每月貸款同步成提醒。
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const KEY_EXP = "expense_records_v2";
+  const KEY_PAY = "income_records_v1";
+  const KEY_LOAN = "loan_records_v1";
+  const KEY_LOAN_PAID = "loan_paid_v1";
+  const KEY_SET = "settings_v1";
+
+  const $ = (id) => document.getElementById(id);
+
+  function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+  function thisMonthISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+  function money(n){ return (Number(n)||0).toLocaleString("zh-Hant-TW"); }
+  function monthOf(dateStr){ return (dateStr||"").slice(0,7); }
+  function uid(){ return Math.random().toString(16).slice(2)+Date.now().toString(16); }
+  function esc(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+
+  function load(key, fallback){
+    try{ const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback; }catch{ return fallback; }
+  }
+  function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+  function defaultSettings(){
+    return { li_rate_percent: 11.5, ei_rate_percent: 1.0, worker_share_percent: 20, admin_fee: 30 };
+  }
+  function getSettings(){
+    const s = load(KEY_SET, null);
+    return s && typeof s === "object" ? {...defaultSettings(), ...s} : defaultSettings();
+  }
+
+  // ===== tabs =====
+  const tabs = document.querySelectorAll(".tab");
+  const sections = {
+    expense: $("tab-expense"),
+    income: $("tab-income"),
+    loans: $("tab-loans"),
+    settings: $("tab-settings"),
+  };
+  function showTab(name){
+    Object.entries(sections).forEach(([k,el])=> el.classList.toggle("hide", k!==name));
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.tab===name));
+    if(name==="expense") renderExpense();
+    if(name==="income") renderIncome();
+    if(name==="loans") renderLoans();
+    if(name==="settings") renderSettings();
+  }
+  tabs.forEach(t => t.addEventListener("click", ()=>showTab(t.dataset.tab)));
+
+  // ===== Expense =====
+  const ex_date=$("ex_date"), ex_category=$("ex_category"), ex_amount=$("ex_amount"), ex_note=$("ex_note");
+  const ex_addBtn=$("ex_addBtn"), ex_clearFormBtn=$("ex_clearFormBtn");
+  const mo_month=$("mo_month"), mo_total=$("mo_total"), mo_count=$("mo_count"), mo_catSummary=$("mo_catSummary");
+  const mo_tbody=$("mo_tbody"), mo_search=$("mo_search");
+  const mo_prevBtn=$("mo_prevBtn"), mo_nextBtn=$("mo_nextBtn");
+
+  function shiftMonth(ym, delta){
+    const [y,m]=ym.split("-").map(Number);
+    const d=new Date(y, m-1+delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  }
+  function loadExp(){ return load(KEY_EXP, []); }
+  function saveExp(items){ save(KEY_EXP, items); }
+
+  function addExpense(){
+    const date = ex_date.value || todayISO();
+    const category = ex_category.value?.trim() || "其他";
+    const amount = Number(ex_amount.value);
+    const note = ex_note.value?.trim() || "";
+    if(!Number.isFinite(amount) || amount<=0){ alert("金額請輸入大於 0 的數字"); return; }
+    const items = loadExp();
+    items.push({ id: uid(), date, category, amount, note, createdAt: Date.now() });
+    saveExp(items);
+    ex_amount.value=""; ex_note.value="";
+    renderExpense();
+  }
+  function deleteExpense(id){
+    const next = loadExp().filter(x=>x.id!==id);
+    saveExp(next);
+    renderExpense();
+  }
+
+  function renderExpense(){
+    const ym = mo_month.value || thisMonthISO();
+    const q = (mo_search.value||"").trim().toLowerCase();
+    const all = loadExp();
+    const monthItems = all
+      .filter(x=>monthOf(x.date)===ym)
+      .filter(x=> !q ? true : (`${x.category} ${x.note}`.toLowerCase().includes(q)))
+      .sort((a,b)=> (a.date===b.date ? (b.createdAt-a.createdAt) : (a.date<b.date?1:-1)));
+
+    const total = monthItems.reduce((s,x)=>s+(Number(x.amount)||0),0);
+    mo_total.textContent = money(total);
+    mo_count.textContent = `${monthItems.length} 筆`;
+
+    const catMap = new Map();
+    monthItems.forEach(x=> catMap.set(x.category, (catMap.get(x.category)||0)+(Number(x.amount)||0)));
+    const cats = Array.from(catMap.entries()).sort((a,b)=>b[1]-a[1]);
+
+    mo_catSummary.innerHTML="";
+    if(cats.length===0){
+      mo_catSummary.innerHTML = `<div class="muted">這個月還沒有支出資料。</div>`;
+    }else{
+      cats.forEach(([cat,sum])=>{
+        const div=document.createElement("div");
+        div.className="split";
+        div.style.padding="8px 10px";
+        div.style.border="1px solid var(--line)";
+        div.style.borderRadius="12px";
+        div.style.background="rgba(255,255,255,.02)";
+        div.innerHTML = `<span class="pill mini">${esc(cat)}</span><span><b>${money(sum)}</b></span>`;
+        mo_catSummary.appendChild(div);
+      });
+    }
+
+    mo_tbody.innerHTML="";
+    monthItems.forEach(x=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML = `
+        <td>${esc(x.date)}</td>
+        <td>${esc(x.category)}</td>
+        <td>${esc(x.note||"")}</td>
+        <td class="right">${money(x.amount)}</td>
+        <td class="right"><button class="btn-danger" data-del="${x.id}">刪除</button></td>
+      `;
+      mo_tbody.appendChild(tr);
+    });
+    mo_tbody.querySelectorAll("[data-del]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id=btn.getAttribute("data-del");
+        if(confirm("要刪除這筆支出嗎？")) deleteExpense(id);
+      });
+    });
+
+    renderIncome();
+  }
+
+  // ===== Backup =====
+  const bk_exportBtn=$("bk_exportBtn"), bk_importInput=$("bk_importInput"), bk_wipeBtn=$("bk_wipeBtn");
+  function exportAll(){
+    const payload = {
+      version: 1,
+      exportedAt: Date.now(),
+      expense: load(KEY_EXP, []),
+      income: load(KEY_PAY, {}),
+      loans: load(KEY_LOAN, []),
+      loanPaid: load(KEY_LOAN_PAID, {}),
+      settings: getSettings(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`記帳備份_${thisMonthISO()}_${Date.now()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+  function importAll(file){
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const p=JSON.parse(String(reader.result||"{}"));
+        if(!p || typeof p!=="object") throw new Error();
+        if(p.expense) save(KEY_EXP, Array.isArray(p.expense)?p.expense:[]);
+        if(p.income) save(KEY_PAY, (p.income && typeof p.income==="object")?p.income:{});
+        if(p.loans) save(KEY_LOAN, Array.isArray(p.loans)?p.loans:[]);
+        if(p.loanPaid) save(KEY_LOAN_PAID, (p.loanPaid && typeof p.loanPaid==="object")?p.loanPaid:{});
+        if(p.settings) save(KEY_SET, (p.settings && typeof p.settings==="object")?p.settings:defaultSettings());
+        alert("匯入完成");
+        renderExpense(); renderIncome(); renderLoans(); renderSettings();
+      }catch{
+        alert("匯入失敗：檔案格式不正確");
+      }finally{
+        bk_importInput.value="";
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+  function wipeAll(){
+    const sure = prompt("這會清除全部資料。確定請輸入：清除");
+    if(sure==="清除"){
+      [KEY_EXP,KEY_PAY,KEY_LOAN,KEY_LOAN_PAID,KEY_SET].forEach(k=>localStorage.removeItem(k));
+      alert("已清除");
+      location.reload();
+    }else{
+      alert("已取消");
+    }
+  }
+
+  // ===== Income =====
+  const in_month=$("in_month");
+  const sh_hours=$("sh_hours"), sh_bonus=$("sh_bonus"), sh_insured=$("sh_insured");
+  const sh_groupl_base=$("sh_groupl_base"), sh_base_hours=$("sh_base_hours");
+  const sh_calcSave=$("sh_calcSave"), sh_clear=$("sh_clear");
+  const ot_amount=$("ot_amount"), ot_save=$("ot_save");
+
+  const sum_income=$("sum_income"), sum_hint=$("sum_hint"), sh_summary=$("sh_summary"), ot_summary=$("ot_summary"), net_summary=$("net_summary");
+
+  function loadIncome(){ return load(KEY_PAY, {}); }
+  function saveIncome(obj){ save(KEY_PAY, obj); }
+  function roundMoney(n){ return Math.round((Number(n)||0)); }
+
+  function calcShopee(ym){
+    const s = getSettings();
+    const hours = Number(sh_hours.value)||0;
+    const bonus = Number(sh_bonus.value)||0;
+    const gross = roundMoney(hours * 205 + bonus);
+
+    let insured = Number(sh_insured.value);
+    if(!Number.isFinite(insured) || insured<=0) insured = gross;
+    insured = roundMoney(insured);
+
+    const workerShare = (Number(s.worker_share_percent)||20)/100;
+    const liRate = (Number(s.li_rate_percent)||11.5)/100;
+    const eiRate = (Number(s.ei_rate_percent)||1.0)/100;
+
+    const li = roundMoney(insured * liRate * workerShare);
+    const ei = roundMoney(insured * eiRate * workerShare);
+
+    const baseFee = Number(sh_groupl_base.value)||0;
+    const baseH = Number(sh_base_hours.value)||160;
+    const group = baseH>0 ? roundMoney(baseFee * (hours/baseH)) : 0;
+
+    const admin = Number(s.admin_fee)||30;
+    const net = roundMoney(gross - li - ei - group - admin);
+
+    return { ym, hours, bonus, hourly:205, gross, insured, deductions:{li,ei,group,admin}, net, updatedAt: Date.now() };
+  }
+
+  function saveShopee(){
+    const ym = in_month.value || thisMonthISO();
+    const rec = calcShopee(ym);
+    const all = loadIncome();
+    all[ym] = all[ym] || {};
+    all[ym].shopee = rec;
+    saveIncome(all);
+    alert("已保存本月蝦皮薪資");
+    renderIncome();
+  }
+
+  function saveOther(){
+    const ym = in_month.value || thisMonthISO();
+    const amt = roundMoney(Number(ot_amount.value)||0);
+    const all = loadIncome();
+    all[ym] = all[ym] || {};
+    all[ym].other = { amount: amt, updatedAt: Date.now() };
+    saveIncome(all);
+    alert("已保存本月其他收入");
+    renderIncome();
+  }
+
+  function renderIncome(){
+    const ym = in_month.value || thisMonthISO();
+    const all = loadIncome();
+    const m = all[ym] || {};
+
+    if(m.shopee){
+      sh_hours.value = m.shopee.hours ?? "";
+      sh_bonus.value = m.shopee.bonus ?? "";
+      sh_insured.value = m.shopee.insured ?? "";
+    }
+    if(m.other){
+      ot_amount.value = m.other.amount ?? "";
+    }
+
+    const sh = m.shopee;
+    const ot = m.other;
+
+    const shNet = sh ? (Number(sh.net)||0) : 0;
+    const otNet = ot ? (Number(ot.amount)||0) : 0;
+    const totalIncome = shNet + otNet;
+
+    sum_income.textContent = money(totalIncome);
+    sum_hint.textContent = totalIncome>0 ? "（實領）" : "先在左邊保存本月收入";
+
+    sh_summary.innerHTML = sh ? `
+      工時：${esc(sh.hours)} 小時<br/>
+      應領：<b>${money(sh.gross)}</b><br/>
+      推估投保薪資：${money(sh.insured)}（可在左邊改）<br/>
+      扣款：勞保 ${money(sh.deductions.li)} + 就保 ${money(sh.deductions.ei)} + 團保 ${money(sh.deductions.group)} + 行政 ${money(sh.deductions.admin)}
+
+你貼第 2 段貼到一半我訊息就被截斷了（因為太長），所以我改成**最保險的做法**：我給你「第 2 段剩下的尾巴」＋「第 3 段結尾」，你照順序貼完就能 Commit，分頁一定會正常。
+
+✅ **現在請你先做一件事：**  
+在 GitHub 編輯器裡，把游標拉到最底部（你剛貼到哪就從那裡接著貼）。
+
+---
+
+# 🔻 第 2 段（剩下的部分）—從你目前畫面最後一行繼續貼
+> 你目前最後一行應該停在：`扣款：勞保 ... 行政 ...` 那附近  
+> 直接把下面整段貼在後面
+
+```html
+<br/>
+      <span class="ok">實領：${money(sh.net)}</span>
+    ` : `<span class="muted">尚未保存本月蝦皮薪資。</span>`;
+
+    ot_summary.innerHTML = ot ? `<span class="ok">本月其他收入：${money(ot.amount)}</span>` : `<span class="muted">尚未保存本月其他收入。</span>`;
+
+    const expTotal = loadExp().filter(x=>monthOf(x.date)===ym).reduce((s,x)=>s+(Number(x.amount)||0),0);
+    const net = totalIncome - expTotal;
+    net_summary.innerHTML = `
+      本月收入（實領）：<b>${money(totalIncome)}</b><br/>
+      本月支出：<b>${money(expTotal)}</b><br/>
+      ${net>=0 ? `<span class="ok">本月結餘：${money(net)}</span>` : `<span class="warn">本月超支：${money(Math.abs(net))}</span>`}
+    `;
+  }
+
+  // ===== Loans =====
+  const ln_name=$("ln_name"), ln_amt=$("ln_amt"), ln_day=$("ln_day"), ln_acct=$("ln_acct"), ln_note=$("ln_note");
+  const ln_add=$("ln_add");
+  const ln_month=$("ln_month"), ln_tbody=$("ln_tbody"), ln_dueHint=$("ln_dueHint");
+
+  function loadLoans(){ return load(KEY_LOAN, []); }
+  function saveLoans(items){ save(KEY_LOAN, items); }
+  function loadLoanPaid(){ return load(KEY_LOAN_PAID, {}); }
+  function saveLoanPaid(obj){ save(KEY_LOAN_PAID, obj); }
+
+  function addLoan(){
+    const name = ln_name.value.trim();
+    const amount = roundMoney(Number(ln_amt.value)||0);
+    const day = Number(ln_day.value)||0;
+    const acct = ln_acct.value.trim();
+    const note = ln_note.value.trim();
+
+    if(!name){ alert("請填名稱"); return; }
+    if(!(amount>0)){ alert("請填每月金額"); return; }
+    if(!(day>=1 && day<=28)){ alert("期限建議填 1~28"); return; }
+
+    const items = loadLoans();
+    items.push({ id: uid(), name, amount, day, acct, note, createdAt: Date.now() });
+    saveLoans(items);
+
+    ln_name.value=""; ln_amt.value=""; ln_day.value=""; ln_acct.value=""; ln_note.value="";
+    renderLoans();
+  }
+
+  function setPaid(ym, loanId, paid){
+    const map = loadLoanPaid();
+    map[ym] = map[ym] || {};
+    if(paid){
+      map[ym][loanId] = { paid: true, paidAt: Date.now() };
+    }else{
+      delete map[ym][loanId];
+    }
+    saveLoanPaid(map);
+    renderLoans();
+  }
+
+  function countPaidTimes(loanId){
+    const map = loadLoanPaid();
+    let c=0;
+    for(const ym of Object.keys(map)){
+      if(map[ym] && map[ym][loanId]?.paid) c++;
+    }
+    return c;
+  }
+
+  function copyText(text){
+    navigator.clipboard?.writeText(text).then(()=>alert("已複製")).catch(()=>{
+      prompt("請長按複製：", text);
+    });
+  }
+
+  function renderLoans(){
+    const ym = ln_month.value || thisMonthISO();
+    const items = loadLoans();
+    const paidMap = loadLoanPaid();
+    const monthPaid = paidMap[ym] || {};
+
+    const now = new Date();
+    const [y,m] = ym.split("-").map(Number);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const hintLines = [];
+    items.forEach(l=>{
+      const due = new Date(y, m-1, Math.min(l.day, 28));
+      const diffDays = Math.round((due - today) / (1000*60*60*24));
+      const isThisMonth = (now.getFullYear()===y && (now.getMonth()+1)===m);
+      if(isThisMonth && !monthPaid[l.id]?.paid && diffDays>=0 && diffDays<=7){
+        hintLines.push(`「${l.name}」${l.day}號到期（剩 ${diffDays} 天）`);
+      }
+    });
+    ln_dueHint.textContent = hintLines.length ? `提醒：${hintLines.join("、")}` : "";
+
+    ln_tbody.innerHTML="";
+    if(items.length===0){
+      ln_tbody.innerHTML = `<tr><td colspan="5" class="muted">還沒有任何貸款/固定繳費，先在左邊新增一筆。</td></tr>`;
+      return;
+    }
+
+    items.forEach(l=>{
+      const isPaid = !!monthPaid[l.id]?.paid;
+      const paidTimes = countPaidTimes(l.id);
+
+      const tr=document.createElement("tr");
+      tr.innerHTML = `
+        <td>
+          <b>${esc(l.name)}</b><div class="mini">${esc(l.note||"")}</div>
+          <div class="mini">已繳：${paidTimes} 次</div>
+        </td>
+        <td class="right">${money(l.amount)}</td>
+        <td>${esc(String(l.day))} 號</td>
+        <td>
+          <button class="copyBtn" data-copy="${l.id}">複製</button>
+          <div class="mini" style="margin-top:6px;">${esc((l.acct||"").slice(0,28))}${(l.acct||"").length>28?"…":""}</div>
+        </td>
+        <td class="right">
+          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" data-paid="${l.id}" ${isPaid?"checked":""} style="width:auto;"/>
+            <span class="${isPaid?"ok":"warn"}">${isPaid?"已繳":"未繳"}</span>
+          </label>
+        </td>
+      `;
+      ln_tbody.appendChild(tr);
+
+      tr.querySelector(`[data-copy="${l.id}"]`).addEventListener("click", ()=> copyText(l.acct||""));
+      tr.querySelector(`[data-paid="${l.id}"]`).addEventListener("change", (e)=> setPaid(ym, l.id, e.target.checked));
+    });
+  }
+
+  // ===== Settings UI =====
+  const set_li_rate=$("set_li_rate"), set_ei_rate=$("set_ei_rate"), set_worker_share=$("set_worker_share"), set_admin_fee=$("set_admin_fee");
+  const set_save=$("set_save");
+
+  function renderSettings(){
+    const s = getSettings();
+    set_li_rate.value = s.li_rate_percent;
+    set_ei_rate.value = s.ei_rate_percent;
+    set_worker_share.value = s.worker_share_percent;
+    set_admin_fee.value = s.admin_fee;
+  }
+
+  function saveSettings(){
+    const next = {
+      li_rate_percent: Number(set_li_rate.value)||11.5,
+      ei_rate_percent: Number(set_ei_rate.value)||1.0,
+      worker_share_percent: Number(set_worker_share.value)||20,
+      admin_fee: Number(set_admin_fee.value)||30
+    };
+    save(KEY_SET, next);
+    alert("已保存設定");
+  }
+
+  // ===== wire events =====
+  ex_date.value = todayISO();
+  mo_month.value = thisMonthISO();
+  in_month.value = thisMonthISO();
+  ln_month.value = thisMonthISO();
+
+  ex_addBtn.addEventListener("click", addExpense);
+  ex_clearFormBtn.addEventListener("click", ()=>{ ex_amount.value=""; ex_note.value=""; });
+
+  mo_search.addEventListener("input", renderExpense);
+  mo_prevBtn.addEventListener("click", ()=>{ mo_month.value = shiftMonth(mo_month.value||thisMonthISO(), -1); renderExpense(); });
+  mo_nextBtn.addEventListener("click", ()=>{ mo_month.value = shiftMonth(mo_month.value||thisMonthISO(), +1); renderExpense(); });
+  mo_month.addEventListener("change", renderExpense);
+
+  bk_exportBtn.addEventListener("click", exportAll);
+  bk_importInput.addEventListener("change", (e)=> importAll(e.target.files?.[0]));
+  bk_wipeBtn.addEventListener("click", wipeAll);
+
+  sh_calcSave.addEventListener("click", saveShopee);
+  sh_clear.addEventListener("click", ()=>{ sh_hours.value=""; sh_bonus.value=""; sh_insured.value=""; });
+
+  ot_save.addEventListener("click", saveOther);
+  in_month.addEventListener("change", renderIncome);
+
+  ln_add.addEventListener("click", addLoan);
+  ln_month.addEventListener("change", renderLoans);
+
+  set_save.addEventListener("click", saveSettings);
+
+  // ===== init =====
+  renderExpense();
+  renderIncome();
+  renderLoans();
+  renderSettings();
+})();
+  </script>
+</body>
+</html>
