@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>簡易記帳</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6; --line:#243055; --accent:#7aa2ff; --danger:#ff6b6b; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif; background:linear-gradient(180deg,#070b17, #0b1020); color:var(--text); }
+    .wrap{ max-width:980px; margin:0 auto; padding:24px; }
+    h1{ margin:0 0 12px; font-size:22px; }
+    .grid{ display:grid; gap:14px; grid-template-columns: 1.1fr .9fr; }
+    @media (max-width:900px){ .grid{ grid-template-columns: 1fr; } }
+    .card{ background:rgba(18,26,51,.85); border:1px solid var(--line); border-radius:14px; padding:16px; backdrop-filter: blur(8px); }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, select, textarea, button{
+      width:100%; padding:10px 12px; border-radius:10px;
+      border:1px solid var(--line); background:#0c1430; color:var(--text);
+      outline:none;
+    }
+    textarea{ min-height:72px; resize:vertical; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+    .btn{ cursor:pointer; border:1px solid transparent; background:var(--accent); color:#06102b; font-weight:700; }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn-ghost{ background:transparent; border-color:var(--line); color:var(--text); }
+    .btn-danger{ background:transparent; border-color:rgba(255,107,107,.5); color:var(--danger); }
+    .muted{ color:var(--muted); font-size:12px; }
+    .kpi{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:12px; border-radius:12px; border:1px dashed rgba(122,162,255,.35); background:rgba(122,162,255,.08); }
+    .kpi strong{ font-size:20px; }
+    table{ width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td{ padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; font-size:13px; }
+    th{ color:var(--muted); font-weight:600; }
+    .tag{ font-size:12px; padding:2px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); }
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .right{ text-align:right; }
+    .pill{ display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
+    .tiny{ font-size:12px; color:var(--muted); }
+    .split{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; }
+    .warn{ color:#ffd27a; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="split">
+      <h1>記帳網頁（本機版）</h1>
+      <div class="pill">
+        <span class="tiny">資料儲存在你的瀏覽器（localStorage）</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 左：新增 -->
+      <div class="card">
+        <h2 style="margin:0 0 6px; font-size:16px;">新增支出</h2>
+        <div class="muted">每筆都會自動保存，可刪除、匯出備份。</div>
+
+        <label>日期</label>
+        <input id="date" type="date" />
+
+        <div class="row">
+          <div>
+            <label>分類</label>
+            <select id="category">
+              <option>餐飲</option>
+              <option>交通</option>
+              <option>購物</option>
+              <option>娛樂</option>
+              <option>生活</option>
+              <option>醫療</option>
+              <option>教育</option>
+              <option>住宿</option>
+              <option>其他</option>
+            </select>
+          </div>
+          <div>
+            <label>金額（TWD）</label>
+            <input id="amount" type="number" inputmode="decimal" min="0" step="1" placeholder="例如 120" />
+          </div>
+        </div>
+
+        <label>備註（可不填）</label>
+        <textarea id="note" placeholder="例如：午餐、捷運、日用品..."></textarea>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="addBtn">新增</button>
+          <button class="btn-ghost" id="clearFormBtn" type="button">清空欄位</button>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;"/>
+
+        <h2 style="margin:0 0 6px; font-size:16px;">備份 / 還原</h2>
+        <div class="row3">
+          <button class="btn-ghost" id="exportBtn" type="button">匯出 JSON</button>
+          <label class="btn-ghost" style="display:flex;align-items:center;justify-content:center;cursor:pointer;">
+            匯入 JSON
+            <input id="importInput" type="file" accept="application/json" style="display:none;" />
+          </label>
+          <button class="btn-danger" id="wipeBtn" type="button">清除全部資料</button>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          提醒：清除全部資料無法復原，建議先匯出備份。
+        </div>
+      </div>
+
+      <!-- 右：月結算 -->
+      <div class="card">
+        <div class="split">
+          <h2 style="margin:0; font-size:16px;">每月結算</h2>
+          <div class="actions">
+            <button class="btn-ghost" id="prevMonthBtn" type="button">← 上個月</button>
+            <button class="btn-ghost" id="nextMonthBtn" type="button">下個月 →</button>
+          </div>
+        </div>
+
+        <label>選擇月份</label>
+        <input id="month" type="month" />
+
+        <div class="kpi" style="margin-top:12px;">
+          <div>
+            <div class="muted">本月總支出</div>
+            <strong id="monthTotal">0</strong>
+          </div>
+          <div class="muted right" id="monthCount">0 筆</div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="muted">分類小計</div>
+          <div id="catSummary" style="display:grid; gap:8px; margin-top:8px;"></div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;"/>
+
+        <div class="split">
+          <h2 style="margin:0; font-size:16px;">明細</h2>
+          <div class="actions">
+            <input id="search" placeholder="搜尋備註 / 分類…" />
+          </div>
+        </div>
+
+        <div style="overflow:auto; margin-top:8px;">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>分類</th>
+                <th>備註</th>
+                <th class="right">金額</th>
+                <th class="right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="muted" style="margin-top:10px;">
+          小技巧：每天記一筆就好，月底直接看總額與分類小計。
+        </div>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:14px;">
+      若你之後想要「登入、多裝置同步、圖表、收入/預算、固定支出」，我也能把它升級成後端版（例如 Firebase / Supabase / Node）。
+    </div>
+  </div>
+
+<script>
+(() => {
+  const KEY = "expense_records_v1";
+
+  const $ = (id) => document.getElementById(id);
+
+  const dateEl = $("date");
+  const catEl = $("category");
+  const amtEl = $("amount");
+  const noteEl = $("note");
+  const addBtn = $("addBtn");
+  const clearFormBtn = $("clearFormBtn");
+
+  const monthEl = $("month");
+  const monthTotalEl = $("monthTotal");
+  const monthCountEl = $("monthCount");
+  const catSummaryEl = $("catSummary");
+  const tbody = $("tbody");
+  const searchEl = $("search");
+
+  const exportBtn = $("exportBtn");
+  const importInput = $("importInput");
+  const wipeBtn = $("wipeBtn");
+  const prevMonthBtn = $("prevMonthBtn");
+  const nextMonthBtn = $("nextMonthBtn");
+
+  function todayISO() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function thisMonthISO() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${yyyy}-${mm}`;
+  }
+
+  function loadAll() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      const data = raw ? JSON.parse(raw) : [];
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveAll(items) {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  }
+
+  function formatMoney(n) {
+    const v = Number(n) || 0;
+    return v.toLocaleString("zh-Hant-TW");
+  }
+
+  function monthOf(dateStr) {
+    // dateStr: YYYY-MM-DD
+    return (dateStr || "").slice(0, 7);
+  }
+
+  function uid() {
+    return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  }
+
+  function getSelectedMonth() {
+    return monthEl.value || thisMonthISO();
+  }
+
+  function setMonth(ym) {
+    monthEl.value = ym;
+    render();
+  }
+
+  function shiftMonth(ym, delta) {
+    const [y, m] = ym.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${yy}-${mm}`;
+  }
+
+  function validateAndBuildRecord() {
+    const date = dateEl.value || todayISO();
+    const category = catEl.value?.trim() || "其他";
+    const amount = Number(amtEl.value);
+    const note = noteEl.value?.trim() || "";
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert("金額請輸入大於 0 的數字");
+      return null;
+    }
+    return { id: uid(), date, category, amount, note, createdAt: Date.now() };
+  }
+
+  function addRecord() {
+    const rec = validateAndBuildRecord();
+    if (!rec) return;
+
+    const items = loadAll();
+    items.push(rec);
+    saveAll(items);
+
+    // 友善：新增後保留分類、日期，清空金額與備註
+    amtEl.value = "";
+    noteEl.value = "";
+    if (!dateEl.value) dateEl.value = rec.date;
+
+    render();
+  }
+
+  function deleteRecord(id) {
+    const items = loadAll();
+    const next = items.filter(x => x.id !== id);
+    saveAll(next);
+    render();
+  }
+
+  function render() {
+    const all = loadAll();
+    const ym = getSelectedMonth();
+    const q = (searchEl.value || "").trim().toLowerCase();
+
+    const monthItems = all
+      .filter(x => monthOf(x.date) === ym)
+      .filter(x => {
+        if (!q) return true;
+        const hay = `${x.category} ${x.note}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => (a.date === b.date ? (b.createdAt - a.createdAt) : (a.date < b.date ? 1 : -1)));
+
+    // KPI
+    const total = monthItems.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+    monthTotalEl.textContent = formatMoney(total);
+    monthCountEl.textContent = `${monthItems.length} 筆`;
+
+    // 分類小計
+    const catMap = new Map();
+    for (const x of monthItems) {
+      catMap.set(x.category, (catMap.get(x.category) || 0) + (Number(x.amount) || 0));
+    }
+    const cats = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+
+    catSummaryEl.innerHTML = "";
+    if (cats.length === 0) {
+      const div = document.createElement("div");
+      div.className = "muted";
+      div.innerHTML = `這個月還沒有資料。<span class="warn">先新增一筆看看</span> 👈`;
+      catSummaryEl.appendChild(div);
+    } else {
+      for (const [cat, sum] of cats) {
+        const row = document.createElement("div");
+        row.className = "split";
+        row.style.padding = "8px 10px";
+        row.style.border = "1px solid var(--line)";
+        row.style.borderRadius = "12px";
+        row.style.background = "rgba(255,255,255,.02)";
+        row.innerHTML = `<span class="tag">${escapeHtml(cat)}</span><span><b>${formatMoney(sum)}</b></span>`;
+        catSummaryEl.appendChild(row);
+      }
+    }
+
+    // 表格
+    tbody.innerHTML = "";
+    for (const x of monthItems) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(x.date)}</td>
+        <td>${escapeHtml(x.category)}</td>
+        <td>${escapeHtml(x.note || "")}</td>
+        <td class="right">${formatMoney(x.amount)}</td>
+        <td class="right">
+          <button class="btn-danger" data-del="${x.id}" type="button">刪除</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    // 綁刪除
+    tbody.querySelectorAll("[data-del]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-del");
+        if (confirm("要刪除這筆記帳嗎？")) deleteRecord(id);
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function exportJSON() {
+    const data = loadAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `記帳備份_${thisMonthISO()}_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJSON(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "[]"));
+        if (!Array.isArray(parsed)) throw new Error("格式不是陣列");
+        // 基本清理：只保留需要欄位
+        const cleaned = parsed
+          .filter(x => x && typeof x === "object")
+          .map(x => ({
+            id: String(x.id || uid()),
+            date: String(x.date || todayISO()).slice(0, 10),
+            category: String(x.category || "其他"),
+            amount: Number(x.amount) || 0,
+            note: String(x.note || ""),
+            createdAt: Number(x.createdAt) || Date.now(),
+          }))
+          .filter(x => x.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+
+        const existing = loadAll();
+        const merged = [...existing];
+
+        // 去重：同 id 只保留一個
+        const seen = new Set(merged.map(x => x.id));
+        for (const x of cleaned) {
+          if (!seen.has(x.id)) {
+            merged.push(x);
+            seen.add(x.id);
+          }
+        }
+
+        saveAll(merged);
+        alert(`匯入完成：新增 ${Math.max(0, merged.length - existing.length)} 筆`);
+        render();
+      } catch (e) {
+        alert("匯入失敗：JSON 格式不正確或內容不符合");
+      } finally {
+        importInput.value = "";
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  function wipeAll() {
+    const sure = prompt("這會清除全部記帳資料。若確定，請輸入：清除");
+    if (sure === "清除") {
+      localStorage.removeItem(KEY);
+      render();
+      alert("已清除全部資料");
+    } else {
+      alert("已取消");
+    }
+  }
+
+  // init
+  dateEl.value = todayISO();
+  monthEl.value = thisMonthISO();
+
+  addBtn.addEventListener("click", addRecord);
+  clearFormBtn.addEventListener("click", () => { amtEl.value = ""; noteEl.value = ""; });
+
+  exportBtn.addEventListener("click", exportJSON);
+  importInput.addEventListener("change", (e) => importJSON(e.target.files?.[0]));
+  wipeBtn.addEventListener("click", wipeAll);
+
+  searchEl.addEventListener("input", render);
+
+  prevMonthBtn.addEventListener("click", () => setMonth(shiftMonth(getSelectedMonth(), -1)));
+  nextMonthBtn.addEventListener("click", () => setMonth(shiftMonth(getSelectedMonth(), +1)));
+
+  monthEl.addEventListener("change", render);
+
+  render();
+})();
+</script>
+</body>
+</html>
