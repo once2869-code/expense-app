@@ -335,7 +335,7 @@
   </div>
 
 <script>
-(() => {
+document.addEventListener("DOMContentLoaded", () => {
   const KEY_EXP = "expense_records_v2";
   const KEY_PAY = "income_records_v1";
   const KEY_LOAN = "loan_records_v1";
@@ -810,8 +810,8 @@
   renderExpense();
   renderIncome();
   renderLoans();
-  renderSettings();
-})();
+renderSettings();
+});
   </script>
 </body>
 </html>
