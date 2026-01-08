@@ -1,10 +1,10 @@
-<!doctype html>
+ <!doctype html>
 <html lang="zh-Hant">
 <head>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>記帳整合版（穩定版含統計）</title>
+<title>記帳整合版（最終統整）</title>
+
 <style>
   :root{
     --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
@@ -67,19 +67,36 @@
 
   .inlineBtns{display:flex;gap:8px;flex-wrap:wrap}
   .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.02);font-size:11px;color:var(--muted)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .chartBox{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
 </style>
+
+<!-- Chart.js：用「安全載入」方式，不會因 CDN 失敗壞掉 -->
+<script>
+(function(){
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+  s.defer=true;
+  s.onload=function(){ window.__chartReady = true; };
+  s.onerror=function(){ window.__chartReady = false; };
+  document.head.appendChild(s);
+})();
+</script>
 </head>
 
 <body>
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div>
-      <h1>記帳整合版（穩定版）</h1>
-      <div class="muted">若你剛剛遇到「按鈕都按不了」，通常是 script 壞掉；這版不靠外部套件，先確保所有新增/編輯可用。</div>
+      <h1>記帳整合版（最終統整）</h1>
+      <div class="muted">資料存在本機瀏覽器 localStorage；建議每月匯出 JSON 存到 iCloud Drive。</div>
     </div>
     <span class="pill" id="pill_state">載入中…</span>
   </div>
 
+  <!-- Balance -->
   <div class="card">
     <h2>即時餘額</h2>
     <div class="row">
@@ -102,6 +119,7 @@
     </div>
   </div>
 
+  <!-- Tabs -->
   <input id="t-exp" type="radio" name="tab" checked>
   <input id="t-inc" type="radio" name="tab">
   <input id="t-fix" type="radio" name="tab">
@@ -120,6 +138,7 @@
 
   <div class="panels">
 
+    <!-- Expenses -->
     <div id="p-exp" class="panel card">
       <h2>支出</h2>
       <div class="row">
@@ -132,8 +151,8 @@
           <input id="ex_amt" type="number" placeholder="例如 120">
         </div>
       </div>
-      <label>備註（用於品項統計）</label>
-      <input id="ex_note" placeholder="例如 午餐 / 咖啡 / 交通">
+      <label>備註（建議：店家/品項/用途，例如：星巴克 拿鐵、全聯 採買、捷運）</label>
+      <input id="ex_note" placeholder="例如 星巴克 拿鐵 / 全聯 採買 / 捷運">
 
       <div class="inlineBtns" style="margin-top:10px">
         <button class="btn" id="ex_save" type="button">新增支出</button>
@@ -146,6 +165,7 @@
       </table>
     </div>
 
+    <!-- Incomes -->
     <div id="p-inc" class="panel card">
       <h2>收入</h2>
 
@@ -200,6 +220,7 @@
       </table>
     </div>
 
+    <!-- Fixed -->
     <div id="p-fix" class="panel card">
       <h2>固定支出 / 貸款</h2>
       <div class="row">
@@ -218,12 +239,12 @@
           <input id="fx_day" type="number" placeholder="例如 10">
         </div>
         <div>
-          <label>銀行帳戶（可空白）</label>
-          <input id="fx_acct" placeholder="可貼上帳號，之後可複製">
+          <label>銀行帳戶（可空白，可複製）</label>
+          <input id="fx_acct" placeholder="例如 012-345-678901">
         </div>
       </div>
       <label>備註</label>
-      <textarea id="fx_note" placeholder="例如 期限 / 銀行名稱"></textarea>
+      <textarea id="fx_note" placeholder="例如 銀行/期限/分期說明"></textarea>
 
       <div class="inlineBtns" style="margin-top:10px">
         <button class="btn" id="fx_save" type="button">新增固定支出</button>
@@ -234,23 +255,44 @@
         <thead><tr><th>名稱</th><th class="right">金額</th><th>狀態</th><th class="right">操作</th></tr></thead>
         <tbody id="fx_list"></tbody>
       </table>
-      <div class="small" style="margin-top:10px">本月勾「已繳」才扣入餘額；每筆會顯示「已繳 X 次」。</div>
+      <div class="small" style="margin-top:10px">
+        本月勾「已繳」才會扣入餘額；停用後不計入；每筆顯示已繳次數（跨月累計）。
+      </div>
     </div>
 
+    <!-- Reports -->
     <div id="p-rep" class="panel card">
       <h2>報表（本月）</h2>
       <div class="small" id="rep_summary"></div>
 
       <div class="card" style="margin-top:12px">
-        <h2 style="margin:0 0 8px">消費品項統計（依支出備註）</h2>
+        <h2>圖表分析</h2>
+        <div class="grid2">
+          <div class="chartBox">
+            <div class="small">支出分類圓餅圖</div>
+            <canvas id="chart_pie" height="240"></canvas>
+            <div class="small" id="pie_note" style="margin-top:6px"></div>
+          </div>
+          <div class="chartBox">
+            <div class="small">收支比較長條圖</div>
+            <canvas id="chart_bar" height="240"></canvas>
+            <div class="small" id="bar_note" style="margin-top:6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">消費品項統計（更智能 + 可修正記住）</h2>
+        <div class="small">顯示：分類｜品項。若分錯，按「修正」即可記住，下次自動正確。</div>
         <table>
           <thead>
             <tr>
               <th>排名</th>
-              <th>品項</th>
+              <th>分類｜品項</th>
               <th class="right">次數</th>
               <th class="right">總金額</th>
               <th class="right">佔比</th>
+              <th class="right">修正</th>
             </tr>
           </thead>
           <tbody id="item_table"></tbody>
@@ -259,10 +301,9 @@
       </div>
     </div>
 
+    <!-- Settings -->
     <div id="p-set" class="panel card">
-      <h2>設定（蝦皮扣款預設）</h2>
-      <div class="small">先用預設值；之後要對齊薪資單可再調。</div>
-
+      <h2>設定（蝦皮扣款預設，可依薪資單調整）</h2>
       <div class="row3">
         <div>
           <label>勞保普通事故費率</label>
@@ -293,15 +334,26 @@
       </div>
 
       <button class="btn" id="save_settings" type="button" style="margin-top:10px">儲存設定</button>
+
+      <div class="card" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">分類詞庫提示</h2>
+        <div class="small">
+          分類優先順序：你修正記住的規則 → 店家 → 詞庫 → 其他。你越固定輸入（例如「全聯 採買」「星巴克 拿鐵」），分析越準。
+        </div>
+      </div>
     </div>
 
+    <!-- Backup -->
     <div id="p-bak" class="panel card">
       <h2>備份 / 還原</h2>
+      <div class="small">換手機前先匯出 JSON（存 iCloud Drive）。換手機後匯入即可。</div>
+
       <div class="inlineBtns" style="margin-top:10px">
-        <button class="btn" id="btn_export" type="button">匯出 JSON</button>
+        <button class="btn" id="btn_export" type="button">匯出 JSON（下載）</button>
         <button class="btn-ghost" id="btn_import" type="button">匯入 JSON</button>
       </div>
       <input id="import_file" type="file" accept="application/json" style="display:none">
+
       <div class="card" style="margin-top:12px">
         <h2 style="margin:0 0 8px">危險區（清空資料）</h2>
         <button class="btn-danger" id="btn_clear" type="button" style="margin-top:10px">清空整合版資料</button>
@@ -321,8 +373,8 @@
     FIX: "app_fixed_v3",
     SET: "app_settings_v3",
     START: "app_start_balance_by_month_v3",
-    MIG: "app_migrated_v3"
-    CAT: "app_category_rules_v1",
+    MIG: "app_migrated_v3",
+    CAT: "app_category_rules_v1"
   };
 
   const nowYM = () => new Date().toISOString().slice(0,7);
@@ -335,6 +387,10 @@
     catch { return fallback; }
   };
   const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  const escapeHtml = (s) => String(s ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 
   const defaultSettings = {
     labor_rate: 0.115,
@@ -357,7 +413,7 @@
     const b = Number(bonus || 0);
     const r = Number(rate || 205);
     const gross = h * r + b;
-    const base = gross;
+    const base = gross; // 先以 gross 做估算，日後可依你薪資單調整
     const labor = Math.round(base * s.labor_rate * s.worker_share);
     const emp = Math.round(base * s.emp_rate * s.worker_share);
     const group = Math.round(s.group_monthly * (h / s.group_full_hours));
@@ -366,16 +422,15 @@
     return { gross: Math.round(gross), labor, emp, group, admin, net };
   }
 
-  // ---- migration from older keys used in this conversation ----
+  // ===== Migration: 若你之前版本用過其他 key，也會盡量搬進來 =====
   function migrateOnce() {
     const already = load(KEY.MIG, false);
-    if (already) return "已完成搬移/或已使用整合版";
+    if (already) return "已載入";
 
     const hasNew = load(KEY.EXP, []).length || load(KEY.INC, []).length || load(KEY.FIX, []).length;
-    if (hasNew) { save(KEY.MIG, true); return "整合版已有資料"; }
+    if (hasNew) { save(KEY.MIG, true); return "已載入"; }
 
     const pull = (k) => (Array.isArray(load(k, [])) ? load(k, []) : []);
-
     const expKeys = ["exp_s15","exp_s1","exp_v1","exp_all_v2"];
     const incKeys = ["inc_s15","inc_s1","inc_v1","inc_all_v2"];
     const fixKeys = ["fix_s15","fix_full_v2","fix_all_v2"];
@@ -431,28 +486,85 @@
     return `已搬移：支出 ${exN.length} / 收入 ${incN.length} / 固定 ${fixN.length}`;
   }
 
-  // ---- state ----
+  // ===== Category engine v2 (smart + learnable) =====
+  function loadCatRules() {
+    return load(KEY.CAT, {
+      map: {}, // user overrides: {"星巴克":"飲料咖啡"}
+      dict: {
+        "飲料咖啡": ["咖啡","拿鐵","美式","星巴克","路易莎","cama","85度c","50嵐","珍奶","手搖","飲料","可可","紅茶","綠茶","奶茶"],
+        "餐飲外食": ["早餐","午餐","晚餐","宵夜","便當","麵","飯","火鍋","炸雞","滷味","小吃","餐","餐費"],
+        "外送": ["ubereats","uber eats","foodpanda","熊貓","外送"],
+        "交通": ["交通","捷運","公車","計程車","uber","高鐵","火車","客運","停車","加油","油錢"],
+        "採買日用品": ["全聯","家樂福","costco","好市多","大潤發","屈臣氏","康是美","日用品","衛生紙","洗髮","牙膏","清潔"],
+        "娛樂": ["電影","ktv","遊戲","steam","展覽","娛樂"],
+        "訂閱": ["netflix","spotify","youtube","apple","icloud","訂閱","會員"],
+        "醫療": ["藥","藥局","診所","掛號","醫院","牙醫"],
+        "學習": ["書","課","補習","學費","講義","文具"],
+        "服飾": ["衣","褲","鞋","外套","包"],
+        "人情": ["禮","紅包","禮金","請客"],
+        "其他": []
+      },
+      merchants: {
+        "便利商店": ["7-11","711","全家","萊爾富","okmart","ok"],
+        "超市賣場": ["全聯","家樂福","costco","好市多","大潤發"],
+        "外送平台": ["ubereats","foodpanda","熊貓"],
+        "咖啡店": ["星巴克","路易莎","cama","85度c"]
+      }
+    });
+  }
+  function normalizeText(s) { return String(s || "").trim().toLowerCase().replace(/\s+/g,""); }
+  function guessCategory(note) {
+    const rules = loadCatRules();
+    const raw = String(note || "").trim();
+    const t = normalizeText(raw);
+    if (!t) return { item: "未填", cat: "其他" };
+
+    // 1) user override first
+    for (const k in rules.map) {
+      if (normalizeText(k) && t.includes(normalizeText(k))) return { item: k, cat: rules.map[k] };
+    }
+
+    // 2) merchant
+    for (const mcat in rules.merchants) {
+      for (const kw of (rules.merchants[mcat] || [])) {
+        if (t.includes(normalizeText(kw))) {
+          if (mcat === "咖啡店") return { item: kw, cat: "飲料咖啡" };
+          if (mcat === "外送平台") return { item: kw, cat: "外送" };
+          if (mcat === "超市賣場") return { item: kw, cat: "採買日用品" };
+          if (mcat === "便利商店") return { item: kw, cat: "餐飲外食" };
+        }
+      }
+    }
+
+    // 3) dict keywords
+    for (const cat in rules.dict) {
+      for (const kw of (rules.dict[cat] || [])) {
+        if (kw && t.includes(normalizeText(kw))) return { item: kw, cat };
+      }
+    }
+
+    // 4) fallback: first token
+    const item = raw.split(/[\s,，\/\-#]/).filter(Boolean)[0] || raw.slice(0,8);
+    return { item: item.slice(0,12), cat: "其他" };
+  }
+
+  // ===== State =====
   let editExpId = null;
   let editIncId = null;
   let editFixId = null;
 
-  function getYM() { return $("month").value; }
-
+  // ===== Start balance map =====
   function loadStartMap() { return load(KEY.START, {}); }
-  function setStartForMonth(ym, v) {
-    const m = loadStartMap();
-    m[ym] = Number(v || 0);
-    save(KEY.START, m);
-  }
+  function setStartForMonth(ym, v) { const m = loadStartMap(); m[ym] = Number(v || 0); save(KEY.START, m); }
   function restoreStartForMonth() {
-    const ym = getYM();
+    const ym = $("month").value;
     const m = loadStartMap();
     $("start_balance").value = (m[ym] === undefined) ? "" : m[ym];
   }
 
-  // ---- expense ----
+  // ===== Expenses =====
   function renderExpenses() {
-    const ym = getYM();
+    const ym = $("month").value;
     const items = load(KEY.EXP, []).filter(x => x.ym === ym).sort((a,b)=> (a.date||"").localeCompare(b.date||""));
     const tb = $("ex_list");
     tb.innerHTML = "";
@@ -490,7 +602,7 @@
     $("ex_cancel").style.display = "none";
   }
   function saveExp() {
-    const ym = getYM();
+    const ym = $("month").value;
     const date = $("ex_date").value || todayISO();
     const amt = Math.round(Number($("ex_amt").value || 0));
     const note = ($("ex_note").value || "").trim();
@@ -513,7 +625,7 @@
     renderAll();
   }
 
-  // ---- income ----
+  // ===== Income =====
   function switchIncomeUI() {
     const t = $("in_type").value;
     $("box_shopee").style.display = (t === "shopee") ? "block" : "none";
@@ -529,7 +641,7 @@
   }
 
   function renderIncomes() {
-    const ym = getYM();
+    const ym = $("month").value;
     const items = load(KEY.INC, []).filter(x => x.ym === ym);
     const tb = $("in_list");
     tb.innerHTML = "";
@@ -584,7 +696,7 @@
   }
 
   function saveInc() {
-    const ym = getYM();
+    const ym = $("month").value;
     const arr = load(KEY.INC, []);
     const note = ($("in_note").value || "").trim();
 
@@ -595,7 +707,7 @@
       const rate  = Number($("sh_rate").value  || 205);
       const c = calcShopee(hours, bonus, rate, s);
 
-      // one shopee per month
+      // one shopee per month (replace)
       const id = editIncId || uid();
       const filtered = arr.filter(x => !(x.ym === ym && x.typeKey === "shopee" && x.id !== id));
       const rec = { id, ym, typeKey:"shopee", type:"蝦皮", amt:c.net, hours, bonus, rate, note, breakdown:c };
@@ -633,9 +745,9 @@
     renderAll();
   }
 
-  // ---- fixed ----
+  // ===== Fixed =====
   function renderFixed() {
-    const ym = getYM();
+    const ym = $("month").value;
     const items = load(KEY.FIX, []);
     const tb = $("fx_list");
     tb.innerHTML = "";
@@ -650,7 +762,7 @@
         <td>
           ${escapeHtml(x.name)}
           <div class="small">${escapeHtml(x.note || "")}</div>
-          <div class="small">已繳 ${count} 次</div>
+          <div class="small">帳戶：${escapeHtml(x.acct || "-")} / 繳費日：${escapeHtml(x.day || "-")} / 已繳 ${count} 次</div>
         </td>
         <td class="right">${money(x.amt)}</td>
         <td>${enabled ? "啟用" : "停用"} / ${paidThis ? "已繳" : "未繳"}</td>
@@ -712,11 +824,7 @@
 
     arr.push({ id: uid(), name, amt, day, acct, note, enabled:true, paidYms:[] });
     save(KEY.FIX, arr);
-    $("fx_name").value = "";
-    $("fx_amt").value = "";
-    $("fx_day").value = "";
-    $("fx_acct").value = "";
-    $("fx_note").value = "";
+    cancelEditFix();
     renderAll();
   }
   function delFix(id) {
@@ -733,7 +841,7 @@
     renderAll();
   }
   function toggleFixPaid(id) {
-    const ym = getYM();
+    const ym = $("month").value;
     const arr = load(KEY.FIX, []);
     const x = arr.find(i => i.id === id);
     if (!x) return;
@@ -745,9 +853,9 @@
     renderAll();
   }
 
-  // ---- balance & report ----
+  // ===== Balance + Report + Item stats =====
   function renderBalanceAndReport() {
-    const ym = getYM();
+    const ym = $("month").value;
     const start = Number($("start_balance").value || 0);
     const ex = load(KEY.EXP, []).filter(x => x.ym === ym);
     const inc = load(KEY.INC, []).filter(x => x.ym === ym);
@@ -765,135 +873,29 @@
 
     $("rep_summary").innerHTML =
       `本月收入（實領）<b>${money(incSum)}</b>，支出 <b>${money(expSum)}</b>，固定（已繳）<b>${money(fixSum)}</b>，結餘 <b>${money(incSum-expSum-fixSum)}</b>。`;
-function loadCatRules() {
-  // 使用者自定義規則（會覆蓋預設）
-  return load(KEY.CAT, {
-    // 你可以自己加： "星巴克": "飲料咖啡"
-    map: {},
-
-    // 分類詞庫（預設，之後你也能擴充）
-    dict: {
-      "飲料咖啡": ["咖啡","拿鐵","美式","星巴克","路易莎","cama","85度c","50嵐","珍奶","手搖","飲料","可可","紅茶","綠茶","奶茶"],
-      "餐飲外食": ["早餐","午餐","晚餐","宵夜","便當","麵","飯","火鍋","炸雞","滷味","小吃","餐","餐費","吃"],
-      "外送": ["ubereats","uber eats","foodpanda","熊貓","外送"],
-      "交通": ["交通","捷運","公車","計程車","uber","高鐵","火車","客運","停車","加油","油錢","機車","汽車"],
-      "採買日用品": ["全聯","家樂福","costco","好市多","大潤發","屈臣氏","康是美","日用品","衛生紙","洗髮","牙膏","清潔"],
-      "娛樂": ["電影","ktv","遊戲","steam","演唱會","展覽","娛樂"],
-      "訂閱": ["netflix","spotify","youtube","apple","icloud","訂閱","會員"],
-      "醫療": ["藥","藥局","診所","掛號","醫院","牙醫"],
-      "學習": ["書","課","補習","學費","講義","文具"],
-      "服飾": ["衣","褲","鞋","外套","包","穿搭"],
-      "人情": ["禮","紅包","禮金","喜餅","請客"],
-      "其他": []
-    },
-
-    // 店家字典（先判斷店家，再判斷品項）
-    merchants: {
-      "便利商店": ["7-11","711","全家","萊爾富","okmart","ok"],
-      "超市賣場": ["全聯","家樂福","costco","好市多","大潤發"],
-      "外送平台": ["ubereats","foodpanda","熊貓"],
-      "咖啡店": ["星巴克","路易莎","cama","85度c"]
-    }
-  });
-}
-
-function normalizeText(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g,""); // 去空白
-}
-
-function guessCategory(note) {
-  const rules = loadCatRules();
-  const raw = String(note || "").trim();
-  const t = normalizeText(raw);
-  if (!t) return { item: "未填", cat: "其他" };
-
-  // 1) 使用者自訂最優先
-  for (const k in rules.map) {
-    if (normalizeText(k) && t.includes(normalizeText(k))) {
-      return { item: k, cat: rules.map[k] };
-    }
-  }
-
-  // 2) 先判店家（更像記帳App）
-  for (const mcat in rules.merchants) {
-    const kws = rules.merchants[mcat] || [];
-    for (const kw of kws) {
-      if (t.includes(normalizeText(kw))) {
-        // 便利商店通常算餐飲/採買，看有沒有更明顯品項
-        if (mcat === "咖啡店") return { item: kw, cat: "飲料咖啡" };
-        if (mcat === "外送平台") return { item: kw, cat: "外送" };
-        if (mcat === "超市賣場") return { item: kw, cat: "採買日用品" };
-        if (mcat === "便利商店") return { item: kw, cat: "餐飲外食" };
-      }
-    }
-  }
-
-  // 3) 再判分類詞庫
-  for (const cat in rules.dict) {
-    const kws = rules.dict[cat] || [];
-    for (const kw of kws) {
-      if (kw && t.includes(normalizeText(kw))) {
-        // item 用原字串中的關鍵詞（便於統計）
-        return { item: kw, cat };
-      }
-    }
-  }
-
-  // 4) 都不命中：取前 8 字當 item
-  const item = raw.split(/[\s,，\/\-#]/).filter(Boolean)[0] || raw.slice(0,8);
-  return { item: item.slice(0,12), cat: "其他" };
-}
 
     renderItemStats(ex, expSum);
-  }
-
-  // ---- item stats (by note) ----
-  const CATEGORY_KW = [
-    ["食", ["早餐","午餐","晚餐","宵夜","飲料","咖啡","餐","便當","麵","飯","火鍋","炸雞","甜點"]],
-    ["行", ["交通","捷運","公車","計程車","油","加油","停車","高鐵","火車","客運","uber"]],
-    ["住", ["房租","租金","水電","電費","瓦斯","網路","管理費"]],
-    ["樂", ["娛樂","電影","遊戲","訂閱","netflix","spotify","apple","steam"]],
-    ["購物", ["蝦皮","momo","購物","衣","鞋","包","化妝","日用品"]],
-  ];
-
-  function normalizeItemName(note) {
-    const t = (note || "").trim();
-    if (!t) return "未填";
-
-    // 先用關鍵字把「品項」抓出來（你說你 A/B 都會用）
-    for (const [, kws] of CATEGORY_KW) {
-      for (const kw of kws) {
-        if (t.includes(kw)) return kw; // 品項用關鍵字本身（午餐/咖啡/交通…）
-      }
-    }
-
-    // 找不到就取句子前段（避免每筆都不同）
-    // 以空白、逗號、斜線、-、# 做切分
-    const first = t.split(/[\s,，\/\-#]/).filter(Boolean)[0];
-    return first ? first.slice(0, 12) : "未填";
+    renderChartsSafe(ex, incSum, expSum, fixSum);
   }
 
   function renderItemStats(expenses, expSum) {
     const map = new Map();
     for (const x of expenses) {
       const g = guessCategory(x.note);
-      const name = `${g.cat}｜${g.item}`;
+      const key = `${g.cat}｜${g.item}`;
       const amt = Number(x.amt||0);
-      if (!map.has(name)) map.set(name, {name, count:0, sum:0});
-      const o = map.get(name);
+      if (!map.has(key)) map.set(key, { name:key, item:g.item, cat:g.cat, count:0, sum:0 });
+      const o = map.get(key);
       o.count += 1;
       o.sum += amt;
     }
 
-    const rows = [...map.values()].sort((a,b)=>b.sum-a.sum).slice(0, 20);
+    const rows = [...map.values()].sort((a,b)=>b.sum-a.sum).slice(0, 30);
     const tb = $("item_table");
     tb.innerHTML = "";
 
     if (!rows.length) {
-      tb.innerHTML = `<tr><td colspan="5" class="small">本月尚無支出</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="6" class="small">本月尚無支出</td></tr>`;
       $("item_note").textContent = "";
       return;
     }
@@ -906,33 +908,88 @@ function guessCategory(note) {
         <td>${escapeHtml(r.name)}</td>
         <td class="right">${r.count}</td>
         <td class="right">${money(r.sum)}</td>
-        <td class="right">${pct}%</td>`;
+        <td class="right">${pct}%</td>
         <td class="right">
-         <button class="btn-ghost" type="button" data-fixcat="${encodeURIComponent(r.name)}">修正</button>
-        </td>
+          <button class="btn-ghost" type="button" data-fixcat="${encodeURIComponent(r.item)}" data-curcat="${encodeURIComponent(r.cat)}">修正</button>
+        </td>`;
       tb.appendChild(tr);
     });
 
-  tb.querySelectorAll("[data-fixcat]").forEach(btn=>{
-  btn.onclick = () => {
-    const key = decodeURIComponent(btn.getAttribute("data-fixcat"));
-    const item = key.split("｜")[1] || key; // 取 item
-    const newCat = prompt("輸入新分類（例如：飲料咖啡/交通/採買日用品/餐飲外食/其他）", "餐飲外食");
-    if (!newCat) return;
-
-    const rules = loadCatRules();
-    rules.map[item] = newCat;
-    save(KEY.CAT, rules);
-    alert(`已記住：${item} → ${newCat}`);
-    renderAll(); // 立刻重算
-  };
-});
-
     const top = rows[0];
-    $("item_note").innerHTML = `本月花最多的品項是「<b>${escapeHtml(top.name)}</b>」，共 <b>${top.count}</b> 次，合計 <b>${money(top.sum)}</b>。`;
+    $("item_note").innerHTML = `本月花最多的是「<b>${escapeHtml(top.name)}</b>」，共 <b>${top.count}</b> 次，合計 <b>${money(top.sum)}</b>。`;
+
+    // 修正並記住
+    tb.querySelectorAll("[data-fixcat]").forEach(btn => {
+      btn.onclick = () => {
+        const item = decodeURIComponent(btn.getAttribute("data-fixcat"));
+        const curCat = decodeURIComponent(btn.getAttribute("data-curcat") || "其他");
+        const newCat = prompt(
+          `要把「${item}」歸到哪個分類？\n可用：飲料咖啡 / 餐飲外食 / 外送 / 交通 / 採買日用品 / 娛樂 / 訂閱 / 醫療 / 學習 / 服飾 / 人情 / 其他`,
+          curCat
+        );
+        if (!newCat) return;
+        const rules = loadCatRules();
+        rules.map[item] = newCat.trim();
+        save(KEY.CAT, rules);
+        alert(`已記住：${item} → ${newCat.trim()}`);
+        renderAll();
+      };
+    });
   }
 
-  // ---- settings ui ----
+  // ===== Charts (safe) =====
+  let pieChart = null;
+  let barChart = null;
+
+  function renderChartsSafe(expenses, incSum, expSum, fixSum) {
+    // Chart.js 未載入：只顯示提示，不影響其他功能
+    if (!(window.__chartReady && typeof Chart !== "undefined")) {
+      if ($("pie_note")) $("pie_note").textContent = "（圖表載入中或失敗，不影響記帳功能）";
+      if ($("bar_note")) $("bar_note").textContent = "（圖表載入中或失敗，不影響記帳功能）";
+      return;
+    } else {
+      if ($("pie_note")) $("pie_note").textContent = "";
+      if ($("bar_note")) $("bar_note").textContent = "";
+    }
+
+    // 圓餅圖：用分類引擎統計 cat
+    const catSum = new Map();
+    for (const x of expenses) {
+      const g = guessCategory(x.note);
+      catSum.set(g.cat, (catSum.get(g.cat)||0) + Number(x.amt||0));
+    }
+    // 確保有「其他」
+    if (!catSum.size) catSum.set("其他", 0);
+
+    const pieLabels = [...catSum.keys()];
+    const pieValues = pieLabels.map(k => Math.round(catSum.get(k) || 0));
+
+    const pieEl = document.getElementById("chart_pie");
+    if (pieEl) {
+      try { pieChart?.destroy(); } catch {}
+      pieChart = new Chart(pieEl, {
+        type: "pie",
+        data: { labels: pieLabels, datasets: [{ data: pieValues }] },
+        options: { plugins:{ legend:{ position:"bottom" } } }
+      });
+    }
+
+    // 長條圖：收入/支出/固定
+    const barEl = document.getElementById("chart_bar");
+    if (barEl) {
+      try { barChart?.destroy(); } catch {}
+      barChart = new Chart(barEl, {
+        type: "bar",
+        data: {
+          labels: ["收入","支出","固定(已繳)"],
+          datasets: [{ data: [incSum, expSum, fixSum] }]
+        },
+        options: { plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+  }
+
+  // ===== Settings UI =====
   function renderSettingsUI() {
     const s = loadSettings();
     $("s_labor_rate").value = s.labor_rate;
@@ -956,16 +1013,17 @@ function guessCategory(note) {
     renderShopeePreview();
   }
 
-  // ---- backup ----
+  // ===== Backup =====
   function exportJSON() {
     const payload = {
-      version: "stable_ok3",
+      version: "final_unified_v1",
       exportedAt: new Date().toISOString(),
       expenses: load(KEY.EXP, []),
       incomes: load(KEY.INC, []),
       fixed: load(KEY.FIX, []),
       settings: load(KEY.SET, defaultSettings),
-      startBalanceByMonth: load(KEY.START, {})
+      startBalanceByMonth: load(KEY.START, {}),
+      categoryRules: load(KEY.CAT, null)
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
     const a = document.createElement("a");
@@ -981,12 +1039,12 @@ function guessCategory(note) {
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        if (!data) throw new Error();
         if (Array.isArray(data.expenses)) save(KEY.EXP, data.expenses);
         if (Array.isArray(data.incomes)) save(KEY.INC, data.incomes);
         if (Array.isArray(data.fixed)) save(KEY.FIX, data.fixed);
         if (data.settings) save(KEY.SET, { ...defaultSettings, ...data.settings });
         if (data.startBalanceByMonth) save(KEY.START, data.startBalanceByMonth);
+        if (data.categoryRules) save(KEY.CAT, data.categoryRules);
         alert("匯入完成");
         renderAll();
       } catch {
@@ -1002,20 +1060,15 @@ function guessCategory(note) {
     location.reload();
   }
 
-  function escapeHtml(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-  }
-
+  // ===== Render All =====
   function renderAll() {
     renderExpenses();
     renderIncomes();
     renderFixed();
     renderBalanceAndReport();
-    renderCharts();
   }
 
+  // ===== Init =====
   function init() {
     $("month").value = nowYM();
     $("ex_date").value = todayISO();
@@ -1025,7 +1078,7 @@ function guessCategory(note) {
 
     // start balance per month
     restoreStartForMonth();
-    $("start_balance").addEventListener("input", () => { setStartForMonth(getYM(), $("start_balance").value); renderBalanceAndReport(); });
+    $("start_balance").addEventListener("input", () => { setStartForMonth($("month").value, $("start_balance").value); renderBalanceAndReport(); });
     $("month").addEventListener("change", () => { restoreStartForMonth(); cancelEditExp(); cancelEditInc(); cancelEditFix(); renderAll(); });
 
     // expense
@@ -1052,102 +1105,17 @@ function guessCategory(note) {
     $("import_file").addEventListener("change", (e)=>{ const f=e.target.files?.[0]; if(f) importJSONFile(f); e.target.value=""; });
     $("btn_clear").addEventListener("click", clearData);
 
+    // initial
     switchIncomeUI();
     renderAll();
+
+    // 如果 Chart.js 晚一點才載入，再補畫一次
+    setTimeout(()=>renderAll(), 800);
+    setTimeout(()=>renderAll(), 1800);
   }
-// ===== Chart.js 報表（安全版，不影響按鈕）=====
-let pieChart = null;
-let barChart = null;
-
-function renderCharts() {
-  if (typeof Chart === "undefined") return; // CDN 失敗也不壞
-
-  const ym = $("month").value;
-  const expenses = load(KEY.EXP, []).filter(x => x.ym === ym);
-  const incomes  = load(KEY.INC, []).filter(x => x.ym === ym);
-  const fixed    = load(KEY.FIX, []);
-
-  // ---- 圓餅圖：支出分類 ----
-  const cats = {
-    食: ["早餐","午餐","晚餐","飲料","咖啡","餐"],
-    行: ["交通","捷運","公車","油","加油"],
-    住: ["房租","水電","電費","瓦斯","網路"],
-    樂: ["娛樂","電影","遊戲","訂閱"],
-    購物: ["購物","蝦皮","momo","衣","鞋"]
-  };
-
-  const pieData = { 食:0, 行:0, 住:0, 樂:0, 購物:0, 其他:0 };
-
-  expenses.forEach(e => {
-    const note = e.note || "";
-    let hit = false;
-    for (const k in cats) {
-      if (cats[k].some(w => note.includes(w))) {
-        pieData[k] += e.amt;
-        hit = true;
-        break;
-      }
-    }
-    if (!hit) pieData.其他 += e.amt;
-  });
-
-  const pieCtx = document.getElementById("chart_pie");
-  if (pieCtx) {
-    pieChart?.destroy();
-    pieChart = new Chart(pieCtx, {
-      type: "pie",
-      data: {
-        labels: Object.keys(pieData),
-        datasets: [{ data: Object.values(pieData) }]
-      },
-      options: { plugins:{ legend:{ position:"bottom" } } }
-    });
-  }
-
-  // ---- 長條圖：收入 vs 支出 vs 固定 ----
-  const incSum = incomes.reduce((a,b)=>a+b.amt,0);
-  const expSum = expenses.reduce((a,b)=>a+b.amt,0);
-  const fixSum = fixed
-    .filter(f => f.enabled !== false && f.paidYms?.includes(ym))
-    .reduce((a,b)=>a+b.amt,0);
-
-  const barCtx = document.getElementById("chart_bar");
-  if (barCtx) {
-    barChart?.destroy();
-    barChart = new Chart(barCtx, {
-      type: "bar",
-      data: {
-        labels: ["收入","支出","固定(已繳)"],
-        datasets: [{
-          data: [incSum, expSum, fixSum]
-        }]
-      },
-      options: {
-        plugins:{ legend:{ display:false } },
-        scales:{ y:{ beginAtZero:true } }
-      }
-    });
-  }
-}
 
   init();
-  
 })();
 </script>
-  <div class="card" style="margin-top:12px">
-  <h2>圖表分析</h2>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div>
-      <div class="small">支出分類圓餅圖</div>
-      <canvas id="chart_pie" height="240"></canvas>
-    </div>
-    <div>
-      <div class="small">收支比較長條圖</div>
-      <canvas id="chart_bar" height="240"></canvas>
-    </div>
-  </div>
-</div>
-  
 </body>
 </html>
