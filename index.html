@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>記帳整合版（收入/支出/固定支出）</title>
+<title>記帳整合版（含圖表與統計）</title>
+
 <style>
   :root{
     --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
@@ -39,7 +40,7 @@
   .ok{color:var(--ok);font-weight:900}
   .warn{color:#ffd27a;font-weight:900}
 
-  /* Pure CSS Tabs (iPhone stable) */
+  /* Pure CSS Tabs */
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
   .tabs label{
     padding:9px 12px;border-radius:999px;border:1px solid var(--line);
@@ -49,6 +50,7 @@
   #t-exp:checked ~ .tabs label[for="t-exp"],
   #t-inc:checked ~ .tabs label[for="t-inc"],
   #t-fix:checked ~ .tabs label[for="t-fix"],
+  #t-rep:checked ~ .tabs label[for="t-rep"],
   #t-set:checked ~ .tabs label[for="t-set"],
   #t-bak:checked ~ .tabs label[for="t-bak"]{
     border-color:rgba(122,162,255,.7);background:rgba(122,162,255,.12)
@@ -57,19 +59,28 @@
   #t-exp:checked ~ .panels #p-exp{display:block}
   #t-inc:checked ~ .panels #p-inc{display:block}
   #t-fix:checked ~ .panels #p-fix{display:block}
+  #t-rep:checked ~ .panels #p-rep{display:block}
   #t-set:checked ~ .panels #p-set{display:block}
   #t-bak:checked ~ .panels #p-bak{display:block}
 
   .inlineBtns{display:flex;gap:8px;flex-wrap:wrap}
   .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.02);font-size:11px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .chartBox{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
+  canvas{max-width:100%;height:280px}
 </style>
+
+<!-- Chart.js (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
+
 <body>
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div>
-      <h1>記帳整合版</h1>
-      <div class="muted">資料存在此裝置瀏覽器（localStorage）。可在「備份」匯出到 iCloud Drive。</div>
+      <h1>記帳整合版（含圖表與統計）</h1>
+      <div class="muted">資料存在此裝置瀏覽器（localStorage）。建議每月匯出 JSON 存到 iCloud Drive。</div>
     </div>
     <span class="pill" id="pill_migrated">已載入</span>
   </div>
@@ -101,6 +112,7 @@
   <input id="t-exp" type="radio" name="tab" checked>
   <input id="t-inc" type="radio" name="tab">
   <input id="t-fix" type="radio" name="tab">
+  <input id="t-rep" type="radio" name="tab">
   <input id="t-set" type="radio" name="tab">
   <input id="t-bak" type="radio" name="tab">
 
@@ -108,6 +120,7 @@
     <label for="t-exp">支出</label>
     <label for="t-inc">收入</label>
     <label for="t-fix">固定支出</label>
+    <label for="t-rep">報表</label>
     <label for="t-set">設定</label>
     <label for="t-bak">備份</label>
   </div>
@@ -127,8 +140,8 @@
           <input id="ex_amt" type="number" placeholder="例如 120">
         </div>
       </div>
-      <label>備註</label>
-      <input id="ex_note" placeholder="例如 午餐 / 交通">
+      <label>備註（用於品項統計與分類）</label>
+      <input id="ex_note" placeholder="例如 午餐 / 咖啡 / 交通 / 房租 / 水電">
 
       <div class="inlineBtns" style="margin-top:10px">
         <button class="btn" id="ex_save">新增支出</button>
@@ -235,14 +248,55 @@
         <tbody id="fx_list"></tbody>
       </table>
       <div class="small" style="margin-top:10px">
-        提示：本月勾「已繳」才會扣入餘額；停用後不影響餘額，也不會再出現在你本月應繳判斷中。
+        本月勾「已繳」才會扣入餘額；停用後不影響餘額。每筆會顯示「已繳 X 次」（跨月累計）。
+      </div>
+    </div>
+
+    <!-- Reports -->
+    <div id="p-rep" class="panel card">
+      <h2>報表（本月）</h2>
+      <div class="small">會跟著你上方選的「月份」自動切換。</div>
+
+      <div class="grid2" style="margin-top:12px">
+        <div class="chartBox">
+          <div class="muted">支出分類圓餅圖</div>
+          <canvas id="chart_pie"></canvas>
+          <div class="small" id="pie_note" style="margin-top:6px"></div>
+        </div>
+        <div class="chartBox">
+          <div class="muted">收入 vs 支出 vs 固定（已繳）</div>
+          <canvas id="chart_bar"></canvas>
+          <div class="small" id="bar_note" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">消費品項統計（依支出備註）</h2>
+        <div class="small">
+          規則：先抓「關鍵字品項」（午餐/咖啡/交通…），找不到才用句子前段當品項。你越固定用詞，統計越準。
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>品項</th>
+              <th class="right">次數</th>
+              <th class="right">總金額</th>
+              <th class="right">佔比</th>
+            </tr>
+          </thead>
+          <tbody id="item_table"></tbody>
+        </table>
+
+        <div class="small" id="item_note" style="margin-top:8px"></div>
       </div>
     </div>
 
     <!-- Settings -->
     <div id="p-set" class="panel card">
       <h2>設定（蝦皮扣款預設）</h2>
-      <div class="small">為了方便，你先用預設值；如果你拿到薪資單要對齊，再調整即可。</div>
+      <div class="small">先用預設值；如果你拿到薪資單要對齊，再調整即可。</div>
 
       <div class="row3">
         <div>
@@ -291,7 +345,7 @@
 
       <div class="card" style="margin-top:12px">
         <h2 style="margin:0 0 8px">危險區（清空資料）</h2>
-        <div class="small">只會清空「這個整合版」的資料，不會動到其他舊版 key（避免你找回資料）。</div>
+        <div class="small">只會清空整合版資料（app_*_v3 / app_*_v3_rep）。</div>
         <button class="btn-danger" id="btn_clear" type="button" style="margin-top:10px">清空整合版資料</button>
       </div>
     </div>
@@ -303,13 +357,14 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // ---- New unified keys (this integrated version) ----
+  // Unified keys
   const KEY = {
     EXP: "app_expenses_v3",
     INC: "app_incomes_v3",
     FIX: "app_fixed_v3",
     SET: "app_settings_v3",
-    START_BY_MONTH: "app_start_balance_by_month_v3"
+    START_BY_MONTH: "app_start_balance_by_month_v3",
+    MIG: "app_migrated_v3",
   };
 
   const nowYM = () => new Date().toISOString().slice(0,7);
@@ -329,7 +384,6 @@
     return isFinite(x) ? Math.round(x).toString() : "0";
   };
 
-  // ---- Settings defaults (as per your "照勞基法預設" request) ----
   const defaultSettings = {
     labor_rate: 0.115,
     emp_rate: 0.01,
@@ -339,46 +393,27 @@
     admin_fee: 30
   };
 
-  // ---- Migration: pull old keys into new unified storage if new is empty ----
+  // ===== Migration: also accept earlier keys from this conversation =====
   function migrateOnce() {
-    const already = load("app_migrated_v3", false);
-    if (already) return { migrated: false, note: "已完成搬移" };
+    const already = load(KEY.MIG, false);
+    if (already) return { migrated: false, note: "已完成搬移/或已使用整合版" };
 
-    const newExp = load(KEY.EXP, []);
-    const newInc = load(KEY.INC, []);
-    const newFix = load(KEY.FIX, []);
-    const hasAnyNew = (newExp.length || newInc.length || newFix.length);
-
-    // If user already used this integrated version, do not re-migrate.
-    if (hasAnyNew) {
-      save("app_migrated_v3", true);
+    const hasNew = (load(KEY.EXP, []).length || load(KEY.INC, []).length || load(KEY.FIX, []).length);
+    if (hasNew) {
+      save(KEY.MIG, true);
       return { migrated: false, note: "整合版已有資料" };
     }
 
     const pulled = { exp: [], inc: [], fix: [] };
 
-    // --- Expenses old keys we used in this conversation ---
-    const expKeys = ["exp_s15", "exp_s1", "exp_v1", "exp_s15b", "exp_s15_old", "exp_v2", "exp_all_v2"];
-    for (const k of expKeys) {
-      const arr = load(k, []);
-      if (Array.isArray(arr) && arr.length) pulled.exp.push(...arr);
-    }
+    const expKeys = ["exp_s15","exp_s1","exp_v1","exp_all_v2"];
+    const incKeys = ["inc_s15","inc_s1","inc_v1","inc_all_v2"];
+    const fixKeys = ["fix_s15","fix_full_v2","fix_all_v2"];
 
-    // --- Incomes old keys ---
-    const incKeys = ["inc_s15", "inc_s1", "inc_v1", "inc_all_v2"];
-    for (const k of incKeys) {
-      const arr = load(k, []);
-      if (Array.isArray(arr) && arr.length) pulled.inc.push(...arr);
-    }
+    for (const k of expKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.exp.push(...arr); }
+    for (const k of incKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.inc.push(...arr); }
+    for (const k of fixKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.fix.push(...arr); }
 
-    // --- Fixed old keys (multiple formats existed) ---
-    const fixKeys = ["fix_s15", "fix_full_v2", "fix_s15_old", "fix_all_v2"];
-    for (const k of fixKeys) {
-      const arr = load(k, []);
-      if (Array.isArray(arr) && arr.length) pulled.fix.push(...arr);
-    }
-
-    // Normalize & dedupe
     const expNorm = normalizeExpenses(pulled.exp);
     const incNorm = normalizeIncomes(pulled.inc);
     const fixNorm = normalizeFixed(pulled.fix);
@@ -387,21 +422,19 @@
     save(KEY.INC, incNorm);
     save(KEY.FIX, fixNorm);
 
-    // settings
     const s = load(KEY.SET, null);
     if (!s) save(KEY.SET, defaultSettings);
 
-    save("app_migrated_v3", true);
+    save(KEY.MIG, true);
     return { migrated: true, note: `已搬移：支出 ${expNorm.length} / 收入 ${incNorm.length} / 固定 ${fixNorm.length}` };
   }
 
   function normalizeExpenses(arr) {
     const out = [];
     for (const x of (Array.isArray(arr) ? arr : [])) {
-      // expected legacy: {id, ym, date, amt, note}
       if (!x) continue;
-      const ym = x.ym || x.YM || (x.date ? String(x.date).slice(0,7) : null);
-      const date = x.date || x.dt || todayISO();
+      const ym = x.ym || (x.date ? String(x.date).slice(0,7) : null);
+      const date = x.date || todayISO();
       const amt = Number(x.amt ?? x.amount ?? 0);
       const note = (x.note ?? x.memo ?? "").toString();
       if (!ym || !isFinite(amt)) continue;
@@ -414,31 +447,25 @@
     const out = [];
     for (const x of (Array.isArray(arr) ? arr : [])) {
       if (!x) continue;
-      const ym = x.ym || x.YM;
+      const ym = x.ym;
       if (!ym) continue;
-
-      // Legacy shapes:
-      // - Step1.5: {id, ym, type:"蝦皮"/"其他", typeKey:"shopee"/"other", amt, hours, note}
-      // - older: {id, ym, type, amt, note}
       const typeKey = x.typeKey || (x.type === "蝦皮" ? "shopee" : "other");
-      const type = (typeKey === "shopee") ? "蝦皮" : (x.type || "其他");
-      const amt = Number(x.amt ?? x.amount ?? 0);
+      const type = (typeKey === "shopee") ? "蝦皮" : "其他";
+      const amt = Number(x.amt ?? 0);
       const note = (x.note ?? "").toString();
-      const hours = Number(x.hours ?? x.h ?? 0);
+      const hours = Number(x.hours ?? 0);
       const bonus = Number(x.bonus ?? 0);
       const rate = Number(x.rate ?? 205);
-
-      // For shopee: if legacy stored net only, keep net as amt; keep hours if present.
+      const tag = (x.tag ?? "").toString();
       out.push({
         id: (x.id ?? uid()).toString(),
-        ym,
-        typeKey,
-        type,
+        ym, typeKey, type,
         amt: Math.round(isFinite(amt) ? amt : 0),
         hours: isFinite(hours) ? hours : 0,
         bonus: isFinite(bonus) ? bonus : 0,
         rate: isFinite(rate) ? rate : 205,
-        note
+        note, tag,
+        breakdown: x.breakdown
       });
     }
     return dedupeById(out);
@@ -448,668 +475,14 @@
     const out = [];
     for (const x of (Array.isArray(arr) ? arr : [])) {
       if (!x) continue;
-
-      // Legacy shapes:
-      // - fix_s15: {id,name,amt,day,acct,note,enabled,paidYm}
-      // - fix_full_v2: {id,name,amt,day,acct,note,enabled,paidYms:[]}
       const id = (x.id ?? uid()).toString();
-      const name = (x.name ?? x.title ?? "").toString();
-      const amt = Number(x.amt ?? x.amount ?? 0);
+      const name = (x.name ?? "").toString();
+      const amt = Number(x.amt ?? 0);
       const day = (x.day ?? "").toString();
-      const acct = (x.acct ?? x.account ?? "").toString();
+      const acct = (x.acct ?? "").toString();
       const note = (x.note ?? "").toString();
       const enabled = (x.enabled === undefined) ? (x.on === undefined ? true : !!x.on) : !!x.enabled;
 
       let paidYms = [];
       if (Array.isArray(x.paidYms)) paidYms = x.paidYms.map(String);
-      else if (typeof x.paidYm === "string" && x.paidYm) paidYms = [String(x.paidYm)];
-
-      if (!name || !isFinite(amt)) continue;
-      out.push({ id, name, amt: Math.round(amt), day, acct, note, enabled, paidYms: dedupeStrings(paidYms) });
-    }
-    return dedupeById(out);
-  }
-
-  function dedupeById(arr) {
-    const seen = new Set();
-    const out = [];
-    for (const x of arr) {
-      if (!x || !x.id) continue;
-      if (seen.has(x.id)) continue;
-      seen.add(x.id);
-      out.push(x);
-    }
-    return out;
-  }
-
-  function dedupeStrings(arr) {
-    const s = new Set();
-    for (const v of arr) if (v) s.add(String(v));
-    return [...s].sort();
-  }
-
-  // ---- Shopee calculation (net payable) ----
-  function calcShopee({ hours, bonus, rate, settings }) {
-    const h = Number(hours || 0);
-    const b = Number(bonus || 0);
-    const r = Number(rate || 205);
-
-    const gross = h * r + b;
-
-    // default assumption: insurable base ~= gross (you can adjust later if needed)
-    const base = gross;
-
-    const labor = Math.round(base * settings.labor_rate * settings.worker_share);
-    const emp = Math.round(base * settings.emp_rate * settings.worker_share);
-    const group = Math.round(settings.group_monthly * (h / settings.group_full_hours));
-    const admin = Math.round(settings.admin_fee);
-
-    const net = Math.round(gross - labor - emp - group - admin);
-    return { gross: Math.round(gross), labor, emp, group, admin, net };
-  }
-
-  // ---- State ----
-  let editExpId = null;
-  let editIncId = null;
-  let editFixId = null;
-
-  function getMonth() { return $("month").value; }
-
-  function loadSettings() {
-    const s = load(KEY.SET, null) || defaultSettings;
-    // Ensure all keys exist
-    const merged = { ...defaultSettings, ...s };
-    save(KEY.SET, merged);
-    return merged;
-  }
-
-  function loadStartBalanceByMonth() {
-    return load(KEY.START_BY_MONTH, {});
-  }
-  function saveStartBalanceForMonth(ym, value) {
-    const map = loadStartBalanceByMonth();
-    map[ym] = Number(value || 0);
-    save(KEY.START_BY_MONTH, map);
-  }
-
-  // ---- Render helpers ----
-  function renderAll() {
-    renderExpenses();
-    renderIncomes();
-    renderFixed();
-    renderBalance();
-    renderShopeePreview();
-  }
-
-  function renderBalance() {
-    const ym = getMonth();
-    const start = Number($("start_balance").value || 0);
-
-    const exp = load(KEY.EXP, []).filter(x => x.ym === ym).reduce((a,b)=>a + Number(b.amt||0), 0);
-    const inc = load(KEY.INC, []).filter(x => x.ym === ym).reduce((a,b)=>a + Number(b.amt||0), 0);
-
-    const fix = load(KEY.FIX, [])
-      .filter(x => x.enabled !== false && Array.isArray(x.paidYms) && x.paidYms.includes(ym))
-      .reduce((a,b)=>a + Number(b.amt||0), 0);
-
-    const bal = Math.round(start + inc - exp - fix);
-    $("bal_now").textContent = money(bal);
-    $("bal_state").innerHTML = bal >= 0 ? `<span class="ok">OK</span>` : `<span class="warn">不足</span>`;
-    $("bal_breakdown").innerHTML =
-      `起始 ${money(start)} + 收入 ${money(inc)} - 支出 ${money(exp)} - 固定(已繳) ${money(fix)} = <b>${money(bal)}</b>`;
-  }
-
-  // ---- Expenses ----
-  function renderExpenses() {
-    const ym = getMonth();
-    const items = load(KEY.EXP, []).filter(x => x.ym === ym).sort((a,b)=> (a.date||"").localeCompare(b.date||""));
-    const tb = $("ex_list");
-    tb.innerHTML = "";
-
-    for (const x of items) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(x.date || "")}</td>
-        <td>${escapeHtml(x.note || "")}</td>
-        <td class="right">${money(x.amt)}</td>
-        <td class="right">
-          <button class="btn-ghost" type="button" data-ex-edit="${x.id}">編輯</button>
-          <button class="btn-danger" type="button" data-ex-del="${x.id}">刪除</button>
-        </td>`;
-      tb.appendChild(tr);
-    }
-
-    tb.querySelectorAll("[data-ex-edit]").forEach(btn => {
-      btn.addEventListener("click", () => startEditExpense(btn.getAttribute("data-ex-edit")));
-    });
-    tb.querySelectorAll("[data-ex-del]").forEach(btn => {
-      btn.addEventListener("click", () => deleteExpense(btn.getAttribute("data-ex-del")));
-    });
-  }
-
-  function startEditExpense(id) {
-    const arr = load(KEY.EXP, []);
-    const x = arr.find(e => e.id === id);
-    if (!x) return;
-    editExpId = id;
-    $("ex_date").value = x.date || todayISO();
-    $("ex_amt").value = x.amt ?? "";
-    $("ex_note").value = x.note ?? "";
-    $("ex_save").textContent = "更新支出";
-    $("ex_cancel").style.display = "block";
-  }
-
-  function cancelEditExpense() {
-    editExpId = null;
-    $("ex_amt").value = "";
-    $("ex_note").value = "";
-    $("ex_save").textContent = "新增支出";
-    $("ex_cancel").style.display = "none";
-  }
-
-  function saveExpense() {
-    const ym = getMonth();
-    const date = $("ex_date").value || todayISO();
-    const amt = Number($("ex_amt").value || 0);
-    const note = ($("ex_note").value || "").trim();
-
-    const arr = load(KEY.EXP, []);
-    if (editExpId) {
-      const i = arr.findIndex(e => e.id === editExpId);
-      if (i >= 0) arr[i] = { ...arr[i], ym, date, amt: Math.round(amt), note };
-      cancelEditExpense();
-    } else {
-      arr.push({ id: uid(), ym, date, amt: Math.round(amt), note });
-    }
-    save(KEY.EXP, arr);
-    $("ex_amt").value = "";
-    $("ex_note").value = "";
-    renderAll();
-  }
-
-  function deleteExpense(id) {
-    const arr = load(KEY.EXP, []);
-    save(KEY.EXP, arr.filter(x => x.id !== id));
-    if (editExpId === id) cancelEditExpense();
-    renderAll();
-  }
-
-  // ---- Incomes ----
-  function renderIncomes() {
-    const ym = getMonth();
-    const items = load(KEY.INC, []).filter(x => x.ym === ym)
-      .sort((a,b)=> (a.typeKey||"").localeCompare(b.typeKey||""));
-    const tb = $("in_list");
-    tb.innerHTML = "";
-
-    for (const x of items) {
-      const sub = (x.typeKey === "shopee")
-        ? `工時 ${money(x.hours)} / 應領與扣款見下方預覽`
-        : (x.tag ? `標籤：${x.tag}` : "");
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(x.type || "")}<div class="small">${escapeHtml(sub)}</div></td>
-        <td>${escapeHtml(x.note || "")}</td>
-        <td class="right">${money(x.amt)}</td>
-        <td class="right">
-          <button class="btn-ghost" type="button" data-in-edit="${x.id}">編輯</button>
-          <button class="btn-danger" type="button" data-in-del="${x.id}">刪除</button>
-        </td>`;
-      tb.appendChild(tr);
-    }
-
-    tb.querySelectorAll("[data-in-edit]").forEach(btn => {
-      btn.addEventListener("click", () => startEditIncome(btn.getAttribute("data-in-edit")));
-    });
-    tb.querySelectorAll("[data-in-del]").forEach(btn => {
-      btn.addEventListener("click", () => deleteIncome(btn.getAttribute("data-in-del")));
-    });
-  }
-
-  function switchIncomeUI() {
-    const type = $("in_type").value;
-    $("box_shopee").style.display = (type === "shopee") ? "block" : "none";
-    $("box_other").style.display = (type === "other") ? "block" : "none";
-    renderShopeePreview();
-  }
-
-  function startEditIncome(id) {
-    const arr = load(KEY.INC, []);
-    const x = arr.find(i => i.id === id);
-    if (!x) return;
-    editIncId = id;
-
-    $("in_type").value = x.typeKey || (x.type === "蝦皮" ? "shopee" : "other");
-    switchIncomeUI();
-
-    if ($("in_type").value === "shopee") {
-      $("sh_hours").value = x.hours ?? "";
-      $("sh_bonus").value = x.bonus ?? 0;
-      $("sh_rate").value = x.rate ?? 205;
-    } else {
-      $("ot_amt").value = x.amt ?? "";
-      $("ot_tag").value = x.tag ?? "";
-    }
-    $("in_note").value = x.note ?? "";
-
-    $("in_save").textContent = "更新收入";
-    $("in_cancel").style.display = "block";
-    renderShopeePreview();
-  }
-
-  function cancelEditIncome() {
-    editIncId = null;
-    $("sh_hours").value = "";
-    $("sh_bonus").value = "";
-    $("sh_rate").value = "";
-    $("ot_amt").value = "";
-    $("ot_tag").value = "";
-    $("in_note").value = "";
-    $("in_save").textContent = "新增收入";
-    $("in_cancel").style.display = "none";
-    switchIncomeUI();
-  }
-
-  function saveIncome() {
-    const ym = getMonth();
-    const typeKey = $("in_type").value;
-    const note = ($("in_note").value || "").trim();
-    const arr = load(KEY.INC, []);
-
-    if (typeKey === "shopee") {
-      const settings = loadSettings();
-      const hours = Number($("sh_hours").value || 0);
-      const bonus = Number($("sh_bonus").value || 0);
-      const rate = Number($("sh_rate").value || 205);
-
-      const c = calcShopee({ hours, bonus, rate, settings });
-
-      // rule: shopee is one record per month (overwrite that month)
-      const keep = arr.filter(x => !(x.ym === ym && x.typeKey === "shopee" && x.id !== editIncId));
-      // if editing an existing shopee record, keep same id; else new id
-      const id = editIncId || uid();
-
-      // Remove any other shopee records in same month (strict one-per-month)
-      const withoutMonthShopee = keep.filter(x => !(x.ym === ym && x.typeKey === "shopee" && x.id !== id));
-
-      const rec = {
-        id,
-        ym,
-        typeKey: "shopee",
-        type: "蝦皮",
-        hours,
-        bonus,
-        rate,
-        amt: c.net,         // store NET as "income"
-        note,
-        // store breakdown for transparency
-        breakdown: c
-      };
-
-      // If editing, replace; else append
-      const replaced = withoutMonthShopee.map(x => (x.id === id ? rec : x));
-      const exists = withoutMonthShopee.some(x => x.id === id);
-      const finalArr = exists ? replaced : [...withoutMonthShopee, rec];
-
-      save(KEY.INC, finalArr);
-      cancelEditIncome();
-      renderAll();
-      return;
-    }
-
-    // other income
-    const amt = Number($("ot_amt").value || 0);
-    const tag = ($("ot_tag").value || "").trim();
-
-    if (editIncId) {
-      const i = arr.findIndex(x => x.id === editIncId);
-      if (i >= 0) arr[i] = { ...arr[i], ym, typeKey: "other", type: "其他", amt: Math.round(amt), tag, note };
-      save(KEY.INC, arr);
-      cancelEditIncome();
-    } else {
-      arr.push({ id: uid(), ym, typeKey: "other", type: "其他", amt: Math.round(amt), tag, note });
-      save(KEY.INC, arr);
-      $("ot_amt").value = "";
-      $("ot_tag").value = "";
-      $("in_note").value = "";
-    }
-    renderAll();
-  }
-
-  function deleteIncome(id) {
-    const arr = load(KEY.INC, []);
-    save(KEY.INC, arr.filter(x => x.id !== id));
-    if (editIncId === id) cancelEditIncome();
-    renderAll();
-  }
-
-  function renderShopeePreview() {
-    if ($("in_type").value !== "shopee") { $("sh_preview").textContent = ""; return; }
-    const settings = loadSettings();
-    const hours = Number($("sh_hours").value || 0);
-    const bonus = Number($("sh_bonus").value || 0);
-    const rate = Number($("sh_rate").value || 205);
-    const c = calcShopee({ hours, bonus, rate, settings });
-
-    $("sh_preview").innerHTML =
-      `應領 ${money(c.gross)}（工時×時薪 + 獎金）<br>` +
-      `扣款：勞保 ${money(c.labor)}、就保 ${money(c.emp)}、團保 ${money(c.group)}、行政 ${money(c.admin)}<br>` +
-      `<b>實領 ${money(c.net)}</b>`;
-  }
-
-  // ---- Fixed ----
-  function renderFixed() {
-    const ym = getMonth();
-    const items = load(KEY.FIX, []);
-    const tb = $("fx_list");
-    tb.innerHTML = "";
-
-    for (const x of items) {
-      const enabled = x.enabled !== false;
-      const paidYms = Array.isArray(x.paidYms) ? x.paidYms : [];
-      const paidThisMonth = paidYms.includes(ym);
-      const payCount = paidYms.length;
-
-      const statusLine = `${enabled ? "啟用" : "停用"} / ${paidThisMonth ? "已繳" : "未繳"}`;
-      const extra = `已繳 ${payCount} 次` + (x.day ? `，繳費日 ${escapeHtml(String(x.day))}` : "");
-
-      const acctRow = x.acct
-        ? `<div class="small">帳戶：<span style="word-break:break-all">${escapeHtml(x.acct)}</span></div>`
-        : "";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>
-          ${escapeHtml(x.name)}
-          <div class="small">${escapeHtml(x.note || "")}</div>
-          <div class="small">${extra}</div>
-          ${acctRow}
-        </td>
-        <td class="right">${money(x.amt)}</td>
-        <td>${statusLine}</td>
-        <td class="right">
-          <button class="btn-ghost" type="button" data-fx-paid="${x.id}">${paidThisMonth ? "取消已繳" : "本月已繳"}</button>
-          <button class="btn-ghost" type="button" data-fx-toggle="${x.id}">${enabled ? "停用" : "啟用"}</button>
-          ${x.acct ? `<button class="btn-ghost" type="button" data-fx-copy="${x.id}">複製帳戶</button>` : ""}
-          <button class="btn-ghost" type="button" data-fx-edit="${x.id}">編輯</button>
-          <button class="btn-danger" type="button" data-fx-del="${x.id}">刪除</button>
-        </td>`;
-      tb.appendChild(tr);
-    }
-
-    tb.querySelectorAll("[data-fx-paid]").forEach(btn => btn.addEventListener("click", () => toggleFixedPaid(btn.getAttribute("data-fx-paid"))));
-    tb.querySelectorAll("[data-fx-toggle]").forEach(btn => btn.addEventListener("click", () => toggleFixedEnabled(btn.getAttribute("data-fx-toggle"))));
-    tb.querySelectorAll("[data-fx-edit]").forEach(btn => btn.addEventListener("click", () => startEditFixed(btn.getAttribute("data-fx-edit"))));
-    tb.querySelectorAll("[data-fx-del]").forEach(btn => btn.addEventListener("click", () => deleteFixed(btn.getAttribute("data-fx-del"))));
-    tb.querySelectorAll("[data-fx-copy]").forEach(btn => btn.addEventListener("click", () => copyFixedAccount(btn.getAttribute("data-fx-copy"))));
-  }
-
-  function startEditFixed(id) {
-    const arr = load(KEY.FIX, []);
-    const x = arr.find(f => f.id === id);
-    if (!x) return;
-    editFixId = id;
-
-    $("fx_name").value = x.name || "";
-    $("fx_amt").value = x.amt ?? "";
-    $("fx_day").value = x.day ?? "";
-    $("fx_acct").value = x.acct ?? "";
-    $("fx_note").value = x.note ?? "";
-
-    $("fx_save").textContent = "更新固定支出";
-    $("fx_cancel").style.display = "block";
-  }
-
-  function cancelEditFixed() {
-    editFixId = null;
-    $("fx_name").value = "";
-    $("fx_amt").value = "";
-    $("fx_day").value = "";
-    $("fx_acct").value = "";
-    $("fx_note").value = "";
-    $("fx_save").textContent = "新增固定支出";
-    $("fx_cancel").style.display = "none";
-  }
-
-  function saveFixed() {
-    const name = ($("fx_name").value || "").trim();
-    const amt = Number($("fx_amt").value || 0);
-    const day = ($("fx_day").value || "").trim();
-    const acct = ($("fx_acct").value || "").trim();
-    const note = ($("fx_note").value || "").trim();
-
-    if (!name) { alert("請輸入名稱"); return; }
-
-    const arr = load(KEY.FIX, []);
-    if (editFixId) {
-      const i = arr.findIndex(x => x.id === editFixId);
-      if (i >= 0) {
-        arr[i] = { ...arr[i], name, amt: Math.round(amt), day, acct, note };
-      }
-      save(KEY.FIX, arr);
-      cancelEditFixed();
-      renderAll();
-      return;
-    }
-
-    arr.push({ id: uid(), name, amt: Math.round(amt), day, acct, note, enabled: true, paidYms: [] });
-    save(KEY.FIX, arr);
-    $("fx_name").value = "";
-    $("fx_amt").value = "";
-    $("fx_day").value = "";
-    $("fx_acct").value = "";
-    $("fx_note").value = "";
-    renderAll();
-  }
-
-  function deleteFixed(id) {
-    const arr = load(KEY.FIX, []);
-    save(KEY.FIX, arr.filter(x => x.id !== id));
-    if (editFixId === id) cancelEditFixed();
-    renderAll();
-  }
-
-  function toggleFixedEnabled(id) {
-    const arr = load(KEY.FIX, []);
-    const x = arr.find(f => f.id === id);
-    if (!x) return;
-    x.enabled = !(x.enabled !== false);
-    save(KEY.FIX, arr);
-    renderAll();
-  }
-
-  function toggleFixedPaid(id) {
-    const ym = getMonth();
-    const arr = load(KEY.FIX, []);
-    const x = arr.find(f => f.id === id);
-    if (!x) return;
-    x.paidYms = Array.isArray(x.paidYms) ? x.paidYms : [];
-    if (x.paidYms.includes(ym)) x.paidYms = x.paidYms.filter(m => m !== ym);
-    else x.paidYms.push(ym);
-    x.paidYms = dedupeStrings(x.paidYms);
-    save(KEY.FIX, arr);
-    renderAll();
-  }
-
-  async function copyFixedAccount(id) {
-    const arr = load(KEY.FIX, []);
-    const x = arr.find(f => f.id === id);
-    if (!x || !x.acct) return;
-    try {
-      await navigator.clipboard.writeText(x.acct);
-      alert("已複製帳戶");
-    } catch {
-      // fallback
-      prompt("請長按複製：", x.acct);
-    }
-  }
-
-  // ---- Settings UI ----
-  function renderSettingsUI() {
-    const s = loadSettings();
-    $("s_labor_rate").value = s.labor_rate;
-    $("s_emp_rate").value = s.emp_rate;
-    $("s_worker_share").value = s.worker_share;
-    $("s_group_monthly").value = s.group_monthly;
-    $("s_group_full_hours").value = s.group_full_hours;
-    $("s_admin_fee").value = s.admin_fee;
-  }
-  function saveSettingsFromUI() {
-    const s = {
-      labor_rate: Number($("s_labor_rate").value || defaultSettings.labor_rate),
-      emp_rate: Number($("s_emp_rate").value || defaultSettings.emp_rate),
-      worker_share: Number($("s_worker_share").value || defaultSettings.worker_share),
-      group_monthly: Number($("s_group_monthly").value || defaultSettings.group_monthly),
-      group_full_hours: Number($("s_group_full_hours").value || defaultSettings.group_full_hours),
-      admin_fee: Number($("s_admin_fee").value || defaultSettings.admin_fee),
-    };
-    save(KEY.SET, s);
-    alert("已儲存設定");
-    renderShopeePreview();
-  }
-
-  // ---- Backup ----
-  function exportJSON() {
-    const payload = {
-      version: "v3",
-      exportedAt: new Date().toISOString(),
-      expenses: load(KEY.EXP, []),
-      incomes: load(KEY.INC, []),
-      fixed: load(KEY.FIX, []),
-      settings: load(KEY.SET, defaultSettings),
-      startBalanceByMonth: load(KEY.START_BY_MONTH, {})
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
-    const a = document.createElement("a");
-    const stamp = nowYM().replace("-","");
-    a.href = URL.createObjectURL(blob);
-    a.download = `記帳備份_${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-  }
-
-  function importJSONFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result);
-        if (!data || !data.version) throw new Error("格式不正確");
-        if (Array.isArray(data.expenses)) save(KEY.EXP, normalizeExpenses(data.expenses));
-        if (Array.isArray(data.incomes)) save(KEY.INC, normalizeIncomes(data.incomes));
-        if (Array.isArray(data.fixed)) save(KEY.FIX, normalizeFixed(data.fixed));
-        if (data.settings) save(KEY.SET, { ...defaultSettings, ...data.settings });
-        if (data.startBalanceByMonth) save(KEY.START_BY_MONTH, data.startBalanceByMonth);
-        alert("匯入完成");
-        renderSettingsUI();
-        restoreStartBalanceForMonth();
-        renderAll();
-      } catch (e) {
-        alert("匯入失敗：檔案格式不正確");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function clearIntegratedData() {
-    if (!confirm("確定清空整合版資料？（只清空 app_*_v3）")) return;
-    localStorage.removeItem(KEY.EXP);
-    localStorage.removeItem(KEY.INC);
-    localStorage.removeItem(KEY.FIX);
-    localStorage.removeItem(KEY.SET);
-    localStorage.removeItem(KEY.START_BY_MONTH);
-    localStorage.removeItem("app_migrated_v3");
-    alert("已清空");
-    location.reload();
-  }
-
-  // ---- Month & Start balance per month ----
-  function restoreStartBalanceForMonth() {
-    const ym = getMonth();
-    const map = loadStartBalanceByMonth();
-    const val = map[ym];
-    $("start_balance").value = (val === undefined) ? "" : val;
-  }
-
-  // ---- Utilities ----
-  function escapeHtml(s) {
-    return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // ---- Wire events ----
-  function init() {
-    // Set month & date defaults
-    $("month").value = nowYM();
-    $("ex_date").value = todayISO();
-
-    // Migrate from older keys once
-    const m = migrateOnce();
-    $("pill_migrated").textContent = m.migrated ? `已搬移資料：${m.note}` : `已載入：${m.note}`;
-
-    // Ensure settings exist
-    loadSettings();
-    renderSettingsUI();
-
-    // Start balance per month
-    restoreStartBalanceForMonth();
-
-    // Income type switch
-    $("in_type").addEventListener("change", switchIncomeUI);
-
-    // Save buttons
-    $("ex_save").addEventListener("click", saveExpense);
-    $("ex_cancel").addEventListener("click", cancelEditExpense);
-
-    $("in_save").addEventListener("click", saveIncome);
-    $("in_cancel").addEventListener("click", cancelEditIncome);
-
-    $("fx_save").addEventListener("click", saveFixed);
-    $("fx_cancel").addEventListener("click", cancelEditFixed);
-
-    // Month change affects all panels
-    $("month").addEventListener("change", () => {
-      restoreStartBalanceForMonth();
-      cancelEditExpense();
-      cancelEditIncome();
-      cancelEditFixed();
-      renderAll();
-    });
-
-    // Start balance change should persist per month
-    $("start_balance").addEventListener("input", () => {
-      saveStartBalanceForMonth(getMonth(), $("start_balance").value);
-      renderBalance();
-    });
-
-    // Shopee preview updates
-    ["sh_hours","sh_bonus","sh_rate"].forEach(id => $(id).addEventListener("input", renderShopeePreview));
-
-    // Settings save
-    $("save_settings").addEventListener("click", saveSettingsFromUI);
-
-    // Backup
-    $("btn_export").addEventListener("click", exportJSON);
-    $("btn_import").addEventListener("click", () => $("import_file").click());
-    $("import_file").addEventListener("change", (e) => {
-      const f = e.target.files && e.target.files[0];
-      if (f) importJSONFile(f);
-      e.target.value = "";
-    });
-    $("btn_clear").addEventListener("click", clearIntegratedData);
-
-    // Initial UI state
-    switchIncomeUI();
-    renderAll();
-  }
-
-  init();
-})();
-</script>
-</body>
-</html>
+      else if (typeof x.paidYm === "string" && x.paid
