@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>記帳 Step1（可編輯版）</title>
+<title>記帳 Step1.5（含固定支出）</title>
+
 <style>
 :root{
   --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
@@ -12,14 +13,15 @@
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,"Noto Sans TC",sans-serif;background:#0b1020;color:var(--text)}
 .wrap{max-width:1100px;margin:auto;padding:16px}
-h1{font-size:20px;margin:0 0 8px}
+h1{font-size:20px;margin:0}
 h2{font-size:16px;margin:8px 0}
 .muted{font-size:12px;color:var(--muted)}
 .card{background:#121a33;border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
-input,select,button{
-  width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);
-  background:#0c1430;color:var(--text)
+input,textarea,select,button{
+  width:100%;padding:10px;border-radius:10px;
+  border:1px solid var(--line);background:#0c1430;color:var(--text)
 }
+textarea{resize:vertical}
 button{cursor:pointer}
 .btn{background:var(--accent);color:#06102b;font-weight:800}
 .btn-ghost{background:transparent}
@@ -31,12 +33,14 @@ th,td{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
 .right{text-align:right}
 .ok{color:var(--ok)}
 .warn{color:#ffd27a}
+.small{font-size:11px;color:var(--muted)}
+.copyBtn{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text)}
 </style>
 </head>
 
 <body>
 <div class="wrap">
-<h1>📒 記帳（Step 1：可編輯）</h1>
+<h1>📒 記帳（Step 1.5）</h1>
 
 <!-- 即時餘額 -->
 <div class="card">
@@ -69,10 +73,8 @@ th,td{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
   <option value="shopee">蝦皮（工時）</option>
   <option value="other">其他收入</option>
 </select>
-
 <input id="sh_hours" type="number" placeholder="蝦皮：本月總工時">
 <input id="ot_amt" type="number" placeholder="其他收入金額">
-
 <input id="in_note" placeholder="備註">
 <button class="btn" id="in_save">新增收入</button>
 
@@ -81,11 +83,37 @@ th,td{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
 <tbody id="in_list"></tbody>
 </table>
 </div>
+
+<!-- 固定支出 / 貸款 -->
+<div class="card">
+<h2>固定支出 / 貸款</h2>
+<input id="fx_name" placeholder="名稱（例：學貸 / 房租）">
+<input id="fx_amt" type="number" placeholder="每月金額">
+<div class="row">
+  <input id="fx_day" type="number" placeholder="繳費日（1-31）">
+  <input id="fx_acct" placeholder="銀行帳戶（可複製）">
+</div>
+<textarea id="fx_note" placeholder="備註"></textarea>
+<button class="btn" id="fx_save">新增固定支出</button>
+
+<table>
+<thead>
+<tr>
+  <th>名稱</th>
+  <th class="right">金額</th>
+  <th>狀態</th>
+  <th></th>
+</tr>
+</thead>
+<tbody id="fx_list"></tbody>
+</table>
+</div>
+
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-const K={exp:"exp_s1",inc:"inc_s1",bal:"bal_s1"};
+const K={exp:"exp_s15",inc:"inc_s15",fix:"fix_s15"};
 const load=(k,d)=>JSON.parse(localStorage.getItem(k)||JSON.stringify(d));
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const ym=()=>new Date().toISOString().slice(0,7);
@@ -93,125 +121,181 @@ const ym=()=>new Date().toISOString().slice(0,7);
 $("bal_month").value=ym();
 $("ex_date").value=new Date().toISOString().slice(0,10);
 
-let editExpId=null;
-let editIncId=null;
+let editExp=null, editInc=null, editFix=null;
 
 /* ===== 支出 ===== */
 function renderExp(){
- let list=$("ex_list"); list.innerHTML="";
- let sum=0;
+ let sum=0, tb=$("ex_list"); tb.innerHTML="";
  load(K.exp,[]).filter(x=>x.ym===$("bal_month").value).forEach(x=>{
    sum+=x.amt;
-   let tr=document.createElement("tr");
-   tr.innerHTML=`
+   tb.insertAdjacentHTML("beforeend",`
+   <tr>
      <td>${x.date}</td>
      <td>${x.note}</td>
      <td class="right">${x.amt}</td>
      <td>
-       <button onclick="editExp('${x.id}')">✏️</button>
+       <button onclick="editExpFn('${x.id}')">✏️</button>
        <button onclick="delExp('${x.id}')">🗑️</button>
-     </td>`;
-   list.appendChild(tr);
+     </td>
+   </tr>`);
  });
  return sum;
 }
-function editExp(id){
+function editExpFn(id){
  let x=load(K.exp,[]).find(e=>e.id===id);
- editExpId=id;
- $("ex_date").value=x.date;
- $("ex_amt").value=x.amt;
- $("ex_note").value=x.note;
- $("ex_save").textContent="更新支出";
+ editExp=id;
+ ex_date.value=x.date; ex_amt.value=x.amt; ex_note.value=x.note;
+ ex_save.textContent="更新支出";
 }
 function delExp(id){
  save(K.exp,load(K.exp,[]).filter(x=>x.id!==id));
  renderAll();
 }
-$("ex_save").onclick=()=>{
+ex_save.onclick=()=>{
  let arr=load(K.exp,[]);
- if(editExpId){
-   let i=arr.findIndex(x=>x.id===editExpId);
-   arr[i]={...arr[i],date:$("ex_date").value,amt:+$("ex_amt").value,note:$("ex_note").value};
-   editExpId=null;
-   $("ex_save").textContent="新增支出";
+ if(editExp){
+   let i=arr.findIndex(x=>x.id===editExp);
+   arr[i]={...arr[i],date:ex_date.value,amt:+ex_amt.value,note:ex_note.value};
+   editExp=null; ex_save.textContent="新增支出";
  }else{
-   arr.push({id:Date.now()+"",ym:$("bal_month").value,date:$("ex_date").value,amt:+$("ex_amt").value,note:$("ex_note").value});
+   arr.push({id:Date.now()+"",ym:bal_month.value,date:ex_date.value,amt:+ex_amt.value,note:ex_note.value});
  }
- save(K.exp,arr);
- $("ex_amt").value="";$("ex_note").value="";
+ save(K.exp,arr); ex_amt.value=""; ex_note.value="";
  renderAll();
 };
 
 /* ===== 收入 ===== */
+function calcShopee(hours){
+ let gross=hours*205;
+ let labor=Math.round(gross*0.115*0.2);
+ let emp=Math.round(gross*0.01*0.2);
+ let group=Math.round(210*(hours/160));
+ let net=gross-labor-emp-group-30;
+ return {gross,labor,emp,group,net};
+}
 function renderInc(){
- let list=$("in_list"); list.innerHTML="";
- let sum=0;
- load(K.inc,[]).filter(x=>x.ym===$("bal_month").value).forEach(x=>{
+ let sum=0, tb=$("in_list"); tb.innerHTML="";
+ load(K.inc,[]).filter(x=>x.ym===bal_month.value).forEach(x=>{
    sum+=x.amt;
-   let tr=document.createElement("tr");
-   tr.innerHTML=`
+   tb.insertAdjacentHTML("beforeend",`
+   <tr>
      <td>${x.type}</td>
-     <td>${x.note}</td>
+     <td>${x.note||""}</td>
      <td class="right">${x.amt}</td>
      <td>
-       <button onclick="editInc('${x.id}')">✏️</button>
+       <button onclick="editIncFn('${x.id}')">✏️</button>
        <button onclick="delInc('${x.id}')">🗑️</button>
-     </td>`;
-   list.appendChild(tr);
+     </td>
+   </tr>`);
  });
  return sum;
 }
-function editInc(id){
+function editIncFn(id){
  let x=load(K.inc,[]).find(i=>i.id===id);
- editIncId=id;
- $("in_type").value=x.typeKey;
- $("sh_hours").value=x.hours||"";
- $("ot_amt").value=x.typeKey==="other"?x.amt:"";
- $("in_note").value=x.note;
- $("in_save").textContent="更新收入";
+ editInc=id;
+ in_type.value=x.typeKey;
+ sh_hours.value=x.hours||""; ot_amt.value=x.typeKey==="other"?x.amt:"";
+ in_note.value=x.note||"";
+ in_save.textContent="更新收入";
 }
 function delInc(id){
  save(K.inc,load(K.inc,[]).filter(x=>x.id!==id));
  renderAll();
 }
-$("in_save").onclick=()=>{
+in_save.onclick=()=>{
  let arr=load(K.inc,[]);
- let ymv=$("bal_month").value;
- if(editIncId){
-   let i=arr.findIndex(x=>x.id===editIncId);
-   arr[i]=makeIncome(arr[i].id,ymv);
-   editIncId=null;
-   $("in_save").textContent="新增收入";
+ if(editInc){
+   let i=arr.findIndex(x=>x.id===editInc);
+   arr[i]=makeIncome(editInc);
+   editInc=null; in_save.textContent="新增收入";
  }else{
-   arr.push(makeIncome(Date.now()+"",ymv));
+   arr.push(makeIncome(Date.now()+""));
  }
  save(K.inc,arr);
- $("sh_hours").value="";$("ot_amt").value="";$("in_note").value="";
+ sh_hours.value=""; ot_amt.value=""; in_note.value="";
  renderAll();
 };
-
-function makeIncome(id,ymv){
- if($("in_type").value==="shopee"){
-   let hours=+$("sh_hours").value;
-   let gross=hours*205;
-   let labor=Math.round(gross*0.115*0.2);
-   let emp=Math.round(gross*0.01*0.2);
-   let group=Math.round(210*(hours/160));
-   let net=gross-labor-emp-group-30;
-   return {id,ym:ymv,type:"蝦皮",typeKey:"shopee",amt:net,hours,note:$("in_note").value};
+function makeIncome(id){
+ let ymv=bal_month.value;
+ if(in_type.value==="shopee"){
+   let h=+sh_hours.value||0;
+   let c=calcShopee(h);
+   return {id,ym:ymv,type:"蝦皮",typeKey:"shopee",amt:c.net,hours:h,note:in_note.value};
  }
- return {id,ym:ymv,type:"其他",typeKey:"other",amt:+$("ot_amt").value,note:$("in_note").value};
+ return {id,ym:ymv,type:"其他",typeKey:"other",amt:+ot_amt.value,note:in_note.value};
 }
+
+/* ===== 固定支出 ===== */
+function renderFix(){
+ let sum=0, tb=$("fx_list"); tb.innerHTML="";
+ load(K.fix,[]).forEach(x=>{
+   if(x.enabled && x.paidYm===bal_month.value) sum+=x.amt;
+   tb.insertAdjacentHTML("beforeend",`
+   <tr>
+     <td>
+       ${x.name}
+       <div class="small">${x.note||""}</div>
+     </td>
+     <td class="right">${x.amt}</td>
+     <td>${x.enabled?"啟用":"停用"} / ${x.paidYm===bal_month.value?"已繳":"未繳"}</td>
+     <td>
+       <button onclick="togglePaid('${x.id}')">☑️</button>
+       <button onclick="toggleFix('${x.id}')">⏸️</button>
+       <button onclick="editFixFn('${x.id}')">✏️</button>
+       <button onclick="delFix('${x.id}')">🗑️</button>
+     </td>
+   </tr>`);
+ });
+ return sum;
+}
+function togglePaid(id){
+ let f=load(K.fix,[]);
+ let i=f.find(x=>x.id===id);
+ i.paidYm = i.paidYm===bal_month.value ? "" : bal_month.value;
+ save(K.fix,f); renderAll();
+}
+function toggleFix(id){
+ let f=load(K.fix,[]);
+ let i=f.find(x=>x.id===id);
+ i.enabled=!i.enabled;
+ save(K.fix,f); renderAll();
+}
+function editFixFn(id){
+ let x=load(K.fix,[]).find(f=>f.id===id);
+ editFix=id;
+ fx_name.value=x.name; fx_amt.value=x.amt;
+ fx_day.value=x.day||""; fx_acct.value=x.acct||"";
+ fx_note.value=x.note||"";
+ fx_save.textContent="更新固定支出";
+}
+function delFix(id){
+ save(K.fix,load(K.fix,[]).filter(x=>x.id!==id));
+ renderAll();
+}
+fx_save.onclick=()=>{
+ let arr=load(K.fix,[]);
+ if(editFix){
+   let i=arr.findIndex(x=>x.id===editFix);
+   arr[i]={...arr[i],name:fx_name.value,amt:+fx_amt.value,day:fx_day.value,acct:fx_acct.value,note:fx_note.value};
+   editFix=null; fx_save.textContent="新增固定支出";
+ }else{
+   arr.push({id:Date.now()+"",name:fx_name.value,amt:+fx_amt.value,day:fx_day.value,acct:fx_acct.value,note:fx_note.value,enabled:true,paidYm:""});
+ }
+ save(K.fix,arr);
+ fx_name.value=""; fx_amt.value=""; fx_day.value=""; fx_acct.value=""; fx_note.value="";
+ renderAll();
+};
 
 /* ===== 餘額 ===== */
 function renderAll(){
  let inc=renderInc();
  let exp=renderExp();
+ let fix=renderFix();
  let start=+$("bal_start").value||0;
- $("bal_now").textContent=start+inc-exp;
+ bal_now.textContent=start+inc-exp-fix;
 }
-$("bal_month").onchange=renderAll;
-$("bal_start").oninput=renderAll;
+bal_month.onchange=renderAll;
+bal_start.oninput=renderAll;
 renderAll();
 </script>
 </body>
