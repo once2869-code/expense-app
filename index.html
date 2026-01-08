@@ -1,1138 +1,293 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>記帳＋薪資扣款＋貸款提醒（iPhone 穩定版）</title>
-  <style>
-    :root{
-      --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
-      --line:#243055; --accent:#7aa2ff; --danger:#ff6b6b; --ok:#7dffb2;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;background:linear-gradient(180deg,#070b17,#0b1020);color:var(--text)}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    h1{margin:0 0 10px;font-size:20px}
-    h2{margin:0 0 8px;font-size:16px}
-    .muted{color:var(--muted);font-size:12px}
-    .grid{display:grid;gap:14px;grid-template-columns:1.1fr .9fr}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}}
-    .card{background:rgba(18,26,51,.85);border:1px solid var(--line);border-radius:14px;padding:16px}
-    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
-    input,select,textarea,button{
-      width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
-      background:#0c1430;color:var(--text);outline:none
-    }
-    textarea{min-height:72px;resize:vertical}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    @media (max-width:520px){ .row{grid-template-columns:1fr} .row3{grid-template-columns:1fr} }
-    .btn{cursor:pointer;border:1px solid transparent;background:var(--accent);color:#06102b;font-weight:800}
-    .btn-ghost{cursor:pointer;background:transparent;border-color:var(--line);color:var(--text)}
-    .btn-danger{cursor:pointer;background:transparent;border-color:rgba(255,107,107,.55);color:var(--danger)}
-    .kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px;border-radius:12px;border:1px dashed rgba(122,162,255,.35);background:rgba(122,162,255,.08)}
-    .kpi strong{font-size:22px}
-    .right{text-align:right}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
-    th{color:var(--muted);font-weight:600}
-    .ok{color:var(--ok);font-weight:900}
-    .warn{color:#ffd27a;font-weight:900}
-    .mini{font-size:11px;color:var(--muted)}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.02);font-size:11px;color:var(--muted)}
-    .copyBtn{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer;width:auto}
-    hr{border:none;border-top:1px solid var(--line);margin:16px 0}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>個人記帳＋收入＋固定繳費</title>
 
-    /* ===== Pure CSS Tabs (iPhone stable) ===== */
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
-    .tabs label{
-      padding:9px 12px;border-radius:999px;border:1px solid var(--line);
-      background:rgba(255,255,255,.02);color:var(--text);cursor:pointer;user-select:none
-    }
-    input[name="tab"]{position:absolute;left:-9999px}
-    #t-expense:checked ~ .tabs label[for="t-expense"],
-    #t-income:checked  ~ .tabs label[for="t-income"],
-    #t-loans:checked   ~ .tabs label[for="t-loans"],
-    #t-settings:checked~ .tabs label[for="t-settings"]{
-      border-color:rgba(122,162,255,.7);background:rgba(122,162,255,.12)
-    }
-    .panel{display:none}
-    #t-expense:checked ~ .panels #p-expense{display:block}
-    #t-income:checked  ~ .panels #p-income{display:block}
-    #t-loans:checked   ~ .panels #p-loans{display:block}
-    #t-settings:checked~ .panels #p-settings{display:block}
-  </style>
+<style>
+:root{
+  --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
+  --line:#243055; --accent:#7aa2ff; --danger:#ff6b6b; --ok:#7dffb2;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;
+  background:linear-gradient(180deg,#070b17,#0b1020);
+  color:var(--text)
+}
+.wrap{max-width:1100px;margin:auto;padding:16px}
+h1{font-size:20px;margin:0 0 8px}
+h2{font-size:16px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:12px}
+.card{
+  background:rgba(18,26,51,.9);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:14px;
+  margin-top:12px
+}
+input,select,textarea,button{
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#0c1430;
+  color:var(--text)
+}
+textarea{resize:vertical}
+button{cursor:pointer}
+.btn{background:var(--accent);color:#06102b;font-weight:800}
+.btn-ghost{background:transparent}
+.btn-danger{background:transparent;color:var(--danger)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.row{grid-template-columns:1fr}}
+.kpi{
+  display:flex;justify-content:space-between;align-items:center;
+  border:1px dashed rgba(122,162,255,.4);
+  border-radius:12px;padding:12px;margin-top:8px
+}
+.ok{color:var(--ok);font-weight:800}
+.warn{color:#ffd27a;font-weight:800}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
+th{color:var(--muted)}
+.right{text-align:right}
+
+/* CSS tabs */
+.tabs{display:flex;gap:8px;margin:12px 0}
+.tabs label{
+  padding:8px 12px;border-radius:999px;
+  border:1px solid var(--line);cursor:pointer
+}
+input[name="tab"]{display:none}
+#t-exp:checked~.tabs label[for="t-exp"],
+#t-inc:checked~.tabs label[for="t-inc"],
+#t-fee:checked~.tabs label[for="t-fee"]{
+  background:rgba(122,162,255,.2)
+}
+.panel{display:none}
+#t-exp:checked~.panels #p-exp{display:block}
+#t-inc:checked~.panels #p-inc{display:block}
+#t-fee:checked~.panels #p-fee{display:block}
+</style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
-      <h1>記帳＋薪資扣款（蝦皮）＋貸款提醒</h1>
-      <span class="pill">資料只存在你的手機（不會上傳）</span>
-    </div>
+<div class="wrap">
+<h1>📒 我的記帳</h1>
 
-    <!-- ===== 即時餘額（置頂）===== -->
-    <div class="card" style="margin-top:12px;">
-      <h2>即時餘額</h2>
-      <div class="muted">公式：起始餘額 + 本月收入（實領） − 本月支出 −（本月已繳貸款/固定費）</div>
-
-      <div class="row" style="grid-template-columns:1fr 1fr; align-items:end;">
-        <div>
-          <label>月份</label>
-          <input id="bal_month" type="month" />
-        </div>
-        <div>
-          <label>起始餘額（可選填）</label>
-          <input id="bal_start" type="number" step="1" placeholder="例如 10000" />
-          <div class="mini">不填也可以用：只看「收入-支出-已繳」。每個月份都可以存不同起始餘額。</div>
-        </div>
-      </div>
-
-      <div class="kpi" style="margin-top:12px;">
-        <div>
-          <div class="muted">本月餘額（即時）</div>
-          <strong id="bal_now">0</strong>
-        </div>
-        <div class="right" id="bal_status"></div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <div class="card" style="background:rgba(255,255,255,.02);">
-          <div class="muted">本月收入（實領）</div>
-          <div><b id="bal_income">0</b></div>
-        </div>
-        <div class="card" style="background:rgba(255,255,255,.02);">
-          <div class="muted">本月支出</div>
-          <div><b id="bal_expense">0</b></div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <div class="card" style="background:rgba(255,255,255,.02);">
-          <div class="muted">本月應繳貸款/固定費</div>
-          <div><b id="bal_loan_due">0</b></div>
-        </div>
-        <div class="card" style="background:rgba(255,255,255,.02);">
-          <div class="muted">本月已繳</div>
-          <div><b id="bal_loan_paid">0</b></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tabs radios -->
-    <input id="t-expense" name="tab" type="radio" checked>
-    <input id="t-income" name="tab" type="radio">
-    <input id="t-loans" name="tab" type="radio">
-    <input id="t-settings" name="tab" type="radio">
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <label for="t-expense">支出記帳</label>
-      <label for="t-income">收入/薪資</label>
-      <label for="t-loans">貸款/固定繳費</label>
-      <label for="t-settings">設定</label>
-    </div>
-
-    <div class="panels">
-      <!-- ================= 支出 ================= -->
-      <section id="p-expense" class="panel">
-        <div class="grid">
-          <div class="card">
-            <h2>新增支出</h2>
-            <div class="muted">新增後會出現在右邊本月明細；分類可自訂。</div>
-
-            <label>日期</label>
-            <input id="ex_date" type="date" />
-
-            <div class="row">
-              <div>
-                <label>分類</label>
-                <select id="ex_category"></select>
-              </div>
-              <div>
-                <label>金額（TWD）</label>
-                <input id="ex_amount" type="number" inputmode="decimal" min="0" step="1" placeholder="例如 120" />
-              </div>
-            </div>
-
-            <label>備註（可不填）</label>
-            <textarea id="ex_note" placeholder="例如：午餐、捷運、日用品…"></textarea>
-
-            <div class="row" style="margin-top:12px;">
-              <button class="btn" id="ex_addBtn" type="button">新增</button>
-              <button class="btn-ghost" id="ex_clearFormBtn" type="button">清空欄位</button>
-            </div>
-
-            <hr>
-
-            <h2>分類管理（可自訂）</h2>
-            <div class="muted">刪除分類不影響舊紀錄（舊紀錄保留原文字）。</div>
-
-            <div class="row" style="margin-top:10px;">
-              <div>
-                <label>新增分類</label>
-                <input id="cat_new" placeholder="例如：咖啡、寵物、保養…" />
-              </div>
-              <div style="display:flex;align-items:end;gap:10px;">
-                <button class="btn" id="cat_addBtn" type="button">新增</button>
-                <button class="btn-ghost" id="cat_resetBtn" type="button">重置預設</button>
-              </div>
-            </div>
-
-            <div style="overflow:auto; margin-top:10px;">
-              <table>
-                <thead><tr><th>目前分類</th><th class="right">操作</th></tr></thead>
-                <tbody id="cat_tbody"></tbody>
-              </table>
-            </div>
-
-            <hr>
-
-            <h2>備份 / 還原</h2>
-            <div class="row3">
-              <button class="btn-ghost" id="bk_exportBtn" type="button">匯出 JSON</button>
-              <label class="btn-ghost" style="display:flex;align-items:center;justify-content:center;cursor:pointer;">
-                匯入 JSON
-                <input id="bk_importInput" type="file" accept="application/json" style="display:none;" />
-              </label>
-              <button class="btn-danger" id="bk_wipeBtn" type="button">清除全部資料</button>
-            </div>
-            <div class="muted" style="margin-top:8px;">換手機前先匯出備份。</div>
-          </div>
-
-          <div class="card">
-            <div class="row" style="grid-template-columns:1fr auto auto;align-items:end;">
-              <div>
-                <label>選擇月份</label>
-                <input id="mo_month" type="month" />
-              </div>
-              <button class="btn-ghost" id="mo_prevBtn" type="button">←</button>
-              <button class="btn-ghost" id="mo_nextBtn" type="button">→</button>
-            </div>
-
-            <div class="kpi" style="margin-top:12px;">
-              <div>
-                <div class="muted">本月總支出</div>
-                <strong id="mo_total">0</strong>
-              </div>
-              <div class="muted right" id="mo_count">0 筆</div>
-            </div>
-
-            <div style="margin-top:12px;">
-              <div class="muted">分類小計</div>
-              <div id="mo_catSummary" style="display:grid; gap:8px; margin-top:8px;"></div>
-            </div>
-
-            <hr>
-
-            <div class="row" style="grid-template-columns:1fr;gap:6px;">
-              <input id="mo_search" placeholder="搜尋備註 / 分類…" />
-            </div>
-
-            <div style="overflow:auto; margin-top:8px;">
-              <table>
-                <thead>
-                  <tr><th>日期</th><th>分類</th><th>備註</th><th class="right">金額</th><th class="right">操作</th></tr>
-                </thead>
-                <tbody id="mo_tbody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 收入/薪資 ================= -->
-      <section id="p-income" class="panel">
-        <div class="grid">
-          <div class="card">
-            <h2>蝦皮店到店（時薪 205）</h2>
-            <div class="muted">你只要填工時；扣款用估算（可用投保薪資對齊薪資單）。</div>
-
-            <label>月份</label>
-            <input id="in_month" type="month" />
-
-            <div class="row">
-              <div>
-                <label>本月工時</label>
-                <input id="sh_hours" type="number" min="0" step="0.5" placeholder="例如 58" />
-              </div>
-              <div>
-                <label>獎金/加項（可空白）</label>
-                <input id="sh_bonus" type="number" min="0" step="1" placeholder="例如 580" />
-              </div>
-            </div>
-
-            <div class="row">
-              <div>
-                <label>投保薪資（可手動改）</label>
-                <input id="sh_insured" type="number" min="0" step="1" placeholder="留空＝用應領推估" />
-                <div class="mini">要完全對齊薪資單：把這格改成公司申報的投保薪資級距。</div>
-              </div>
-              <div>
-                <label>團保基準（滿月/基準工時扣多少）</label>
-                <input id="sh_groupl_base" type="number" min="0" step="1" placeholder="例如 210" />
-              </div>
-            </div>
-
-            <label>基準工時（用來比例分攤團保）</label>
-            <input id="sh_base_hours" type="number" min="1" step="1" placeholder="例如 160（滿月工時）" />
-
-            <div class="row" style="margin-top:12px;">
-              <button class="btn" id="sh_calcSave" type="button">計算並保存本月薪資</button>
-              <button class="btn-ghost" id="sh_clear" type="button">清空欄位</button>
-            </div>
-
-            <hr>
-
-            <h2>其他工作（直接給錢）</h2>
-            <div class="muted">不扣任何費用，你只填本月其他收入金額。</div>
-
-            <label>本月其他收入</label>
-            <input id="ot_amount" type="number" min="0" step="1" placeholder="例如 8000" />
-            <button class="btn" id="ot_save" type="button" style="margin-top:12px;">保存本月其他收入</button>
-          </div>
-
-          <div class="card">
-            <h2>本月收入總覽</h2>
-            <div class="kpi" style="margin-top:10px;">
-              <div>
-                <div class="muted">本月總收入（實領）</div>
-                <strong id="sum_income">0</strong>
-              </div>
-              <div class="muted right" id="sum_hint"></div>
-            </div>
-
-            <div style="margin-top:12px;">
-              <div class="muted">蝦皮（本月）</div>
-              <div id="sh_summary" class="mini" style="margin-top:6px; line-height:1.6;"></div>
-            </div>
-
-            <hr>
-
-            <div style="margin-top:12px;">
-              <div class="muted">其他收入（本月）</div>
-              <div id="ot_summary" class="mini" style="margin-top:6px;"></div>
-            </div>
-
-            <hr>
-
-            <div style="margin-top:12px;">
-              <div class="muted">支出與結餘（同月份）</div>
-              <div id="net_summary" class="mini" style="margin-top:6px; line-height:1.6;"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 貸款/固定繳費 ================= -->
-      <section id="p-loans" class="panel">
-        <div class="grid">
-          <div class="card">
-            <h2>新增貸款/固定繳費</h2>
-            <div class="muted">可設定期限、帳戶可複製、每月可勾選是否已繳。</div>
-
-            <label>名稱</label>
-            <input id="ln_name" placeholder="例如：學貸/信用貸/房租" />
-
-            <div class="row">
-              <div>
-                <label>每月金額</label>
-                <input id="ln_amt" type="number" min="0" step="1" placeholder="例如 3500" />
-              </div>
-              <div>
-                <label>每月繳費期限（幾號）</label>
-                <input id="ln_day" type="number" min="1" max="28" step="1" placeholder="例如 10（建議 1~28）" />
-              </div>
-            </div>
-
-            <label>繳款銀行帳戶（可複製貼上）</label>
-            <textarea id="ln_acct" placeholder="例如：銀行：xxx / 帳號：xxx / 戶名：xxx"></textarea>
-
-            <label>備註（可不填）</label>
-            <input id="ln_note" placeholder="例如：轉帳後保留末五碼" />
-
-            <button class="btn" id="ln_add" type="button" style="margin-top:12px;">新增</button>
-          </div>
-
-          <div class="card">
-            <div class="row" style="grid-template-columns:1fr auto;align-items:end;">
-              <div>
-                <label>查看月份</label>
-                <input id="ln_month" type="month" />
-              </div>
-              <div class="muted right" id="ln_dueHint" style="padding-bottom:10px;"></div>
-            </div>
-
-            <div style="overflow:auto; margin-top:8px;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>名稱</th>
-                    <th class="right">金額</th>
-                    <th>期限</th>
-                    <th>帳戶</th>
-                    <th class="right">本月</th>
-                  </tr>
-                </thead>
-                <tbody id="ln_tbody"></tbody>
-              </table>
-            </div>
-
-            <div class="muted" style="margin-top:10px;">可切換月份確認「有沒有繳」與累計繳費次數。</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 設定 ================= -->
-      <section id="p-settings" class="panel">
-        <div class="card">
-          <h2>扣款費率設定</h2>
-          <div class="muted">若公司扣款與估算不同，以薪資單為準；可調整費率/自付比例/行政費。</div>
-
-          <div class="row">
-            <div>
-              <label>勞保普通事故費率（%）</label>
-              <input id="set_li_rate" type="number" step="0.1" min="0" max="30" />
-            </div>
-            <div>
-              <label>就保費率（%）</label>
-              <input id="set_ei_rate" type="number" step="0.1" min="0" max="10" />
-            </div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label>勞工自付比例（%）</label>
-              <input id="set_worker_share" type="number" step="1" min="0" max="100" />
-            </div>
-            <div>
-              <label>行政費（每次發薪扣）</label>
-              <input id="set_admin_fee" type="number" step="1" min="0" />
-            </div>
-          </div>
-
-          <button class="btn" id="set_save" type="button" style="margin-top:12px;">保存設定</button>
-
-          <hr>
-          <div class="muted">
-            想要 iPhone「跳通知」：最穩是用【提醒事項】設每月重複提醒。
-          </div>
-        </div>
-      </section>
-    </div>
+<!-- 即時餘額 -->
+<div class="card">
+  <h2>即時餘額</h2>
+  <div class="row">
+    <input id="bal_month" type="month">
+    <input id="bal_start" type="number" placeholder="起始餘額（可空白）">
   </div>
+  <div class="kpi">
+    <div>
+      <div class="muted">本月餘額</div>
+      <div id="bal_now">0</div>
+    </div>
+    <div id="bal_state"></div>
+  </div>
+</div>
+
+<input id="t-exp" type="radio" name="tab" checked>
+<input id="t-inc" type="radio" name="tab">
+<input id="t-fee" type="radio" name="tab">
+
+<div class="tabs">
+  <label for="t-exp">支出</label>
+  <label for="t-inc">收入</label>
+  <label for="t-fee">固定繳費</label>
+</div>
+
+<div class="panels">
+
+<!-- 支出 -->
+<div id="p-exp" class="panel card">
+<h2>新增支出</h2>
+<input id="ex_date" type="date">
+<input id="ex_amt" type="number" placeholder="金額">
+<input id="ex_note" placeholder="備註">
+<button class="btn" id="ex_add">新增</button>
+
+<table>
+<thead><tr><th>日期</th><th>備註</th><th class="right">金額</th><th></th></tr></thead>
+<tbody id="ex_list"></tbody>
+</table>
+</div>
+
+<!-- 收入 -->
+<div id="p-inc" class="panel card">
+<h2>新增收入</h2>
+<select id="in_type">
+  <option value="shopee">蝦皮（工時）</option>
+  <option value="other">其他收入</option>
+</select>
+
+<div id="shopee_box">
+  <input id="sh_hours" type="number" placeholder="本月總工時">
+</div>
+
+<div id="other_box" style="display:none">
+  <input id="ot_amt" type="number" placeholder="收入金額">
+</div>
+
+<input id="in_note" placeholder="備註">
+<button class="btn" id="in_add">儲存</button>
+
+<table>
+<thead><tr><th>類型</th><th>備註</th><th class="right">金額</th><th></th></tr></thead>
+<tbody id="in_list"></tbody>
+</table>
+</div>
+
+<!-- 固定繳費 -->
+<div id="p-fee" class="panel card">
+<h2>新增固定繳費</h2>
+<input id="fe_name" placeholder="名稱">
+<input id="fe_amt" type="number" placeholder="每月金額">
+<button class="btn" id="fe_add">新增</button>
+
+<table>
+<thead><tr><th>名稱</th><th class="right">金額</th><th>狀態</th><th></th></tr></thead>
+<tbody id="fe_list"></tbody>
+</table>
+</div>
+
+</div>
+</div>
 
 <script>
-(() => {
-  // ===== storage keys =====
-  const KEY_EXP = "expense_records_v3";
-  const KEY_PAY = "income_records_v2";
-  const KEY_LOAN = "loan_records_v2";
-  const KEY_LOAN_PAID = "loan_paid_v2";
-  const KEY_SET = "settings_v2";
-  const KEY_CATS = "expense_categories_v2";
-  const KEY_BAL_START = "balance_start_v1"; // { "YYYY-MM": number }
-
-  const $ = (id) => document.getElementById(id);
-
-  // ===== helpers =====
-  function todayISO(){
-    const d=new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  }
-  function thisMonthISO(){
-    const d=new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-  }
-  function money(n){ return (Number(n)||0).toLocaleString("zh-Hant-TW"); }
-  function monthOf(dateStr){ return (dateStr||"").slice(0,7); }
-  function uid(){ return Math.random().toString(16).slice(2)+Date.now().toString(16); }
-  function esc(s){
-    return String(s??"")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-  function load(key, fallback){
-    try{ const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback; }catch{ return fallback; }
-  }
-  function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
-  function roundMoney(n){ return Math.round((Number(n)||0)); }
-
-  // ===== settings =====
-  function defaultSettings(){
-    return { li_rate_percent: 11.5, ei_rate_percent: 1.0, worker_share_percent: 20, admin_fee: 30 };
-  }
-  function getSettings(){
-    const s = load(KEY_SET, null);
-    return s && typeof s === "object" ? {...defaultSettings(), ...s} : defaultSettings();
-  }
-
-  // ===== categories (custom) =====
-  const DEFAULT_CATS = ["餐飲","交通","購物","娛樂","生活","醫療","教育","住宿","其他"];
-  const ex_category = $("ex_category");
-  const cat_new = $("cat_new");
-  const cat_addBtn = $("cat_addBtn");
-  const cat_resetBtn = $("cat_resetBtn");
-  const cat_tbody = $("cat_tbody");
-
-  function loadCats(){
-    const c = load(KEY_CATS, null);
-    if(Array.isArray(c) && c.length) return c.map(x=>String(x||"").trim()).filter(Boolean);
-    return DEFAULT_CATS.slice();
-  }
-  function saveCats(arr){
-    const clean = Array.from(new Set(arr.map(x=>String(x||"").trim()).filter(Boolean)));
-    save(KEY_CATS, clean.length ? clean : DEFAULT_CATS.slice());
-  }
-  function renderCats(){
-    const cats = loadCats();
-
-    ex_category.innerHTML = "";
-    cats.forEach(name=>{
-      const opt=document.createElement("option");
-      opt.textContent = name;
-      ex_category.appendChild(opt);
-    });
-
-    cat_tbody.innerHTML = "";
-    cats.forEach((name, idx)=>{
-      const tr=document.createElement("tr");
-      tr.innerHTML = `
-        <td>${esc(name)}</td>
-        <td class="right">
-          <button class="btn-ghost" data-rename="${idx}" type="button">改名</button>
-          <button class="btn-danger" data-delcat="${idx}" type="button">刪除</button>
-        </td>
-      `;
-      cat_tbody.appendChild(tr);
-    });
-
-    cat_tbody.querySelectorAll("[data-rename]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const i = Number(btn.getAttribute("data-rename"));
-        const cats2 = loadCats();
-        const next = prompt("新的分類名稱：", cats2[i]);
-        if(next && next.trim()){
-          cats2[i] = next.trim();
-          saveCats(cats2);
-          renderCats();
-          renderExpense();
-          renderIncome();
-          renderBalance();
-        }
-      });
-    });
-
-    cat_tbody.querySelectorAll("[data-delcat]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const i = Number(btn.getAttribute("data-delcat"));
-        const cats2 = loadCats();
-        const name = cats2[i];
-        if(cats2.length<=1){ alert("至少要保留一個分類"); return; }
-        if(confirm(`要刪除分類「${name}」嗎？（不影響舊紀錄）`)){
-          cats2.splice(i,1);
-          saveCats(cats2);
-          renderCats();
-          renderExpense();
-          renderIncome();
-          renderBalance();
-        }
-      });
-    });
-  }
-
-  // ===== expense =====
-  const ex_date=$("ex_date"), ex_amount=$("ex_amount"), ex_note=$("ex_note");
-  const ex_addBtn=$("ex_addBtn"), ex_clearFormBtn=$("ex_clearFormBtn");
-  const mo_month=$("mo_month"), mo_total=$("mo_total"), mo_count=$("mo_count"), mo_catSummary=$("mo_catSummary");
-  const mo_tbody=$("mo_tbody"), mo_search=$("mo_search");
-  const mo_prevBtn=$("mo_prevBtn"), mo_nextBtn=$("mo_nextBtn");
-
-  function shiftMonth(ym, delta){
-    const [y,m]=ym.split("-").map(Number);
-    const d=new Date(y, m-1+delta, 1);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-  }
-  function loadExp(){ return load(KEY_EXP, []); }
-  function saveExp(items){ save(KEY_EXP, items); }
-
-  function addExpense(){
-    const date = ex_date.value || todayISO();
-    const category = ex_category.value?.trim() || "其他";
-    const amount = Number(ex_amount.value);
-    const note = ex_note.value?.trim() || "";
-    if(!Number.isFinite(amount) || amount<=0){ alert("金額請輸入大於 0 的數字"); return; }
-
-    const items = loadExp();
-    items.push({ id: uid(), date, category, amount, note, createdAt: Date.now() });
-    saveExp(items);
-
-    ex_amount.value=""; ex_note.value="";
-    renderExpense();
-    renderIncome();
-    renderBalance();
-  }
-
-  function deleteExpense(id){
-    const next = loadExp().filter(x=>x.id!==id);
-    saveExp(next);
-    renderExpense();
-    renderIncome();
-    renderBalance();
-  }
-
-  function renderExpense(){
-    const ym = mo_month.value || thisMonthISO();
-    const q = (mo_search.value||"").trim().toLowerCase();
-    const all = loadExp();
-
-    const monthItems = all
-      .filter(x=>monthOf(x.date)===ym)
-      .filter(x=> !q ? true : (`${x.category} ${x.note}`.toLowerCase().includes(q)))
-      .sort((a,b)=> (a.date===b.date ? (b.createdAt-a.createdAt) : (a.date<b.date?1:-1)));
-
-    const total = monthItems.reduce((s,x)=>s+(Number(x.amount)||0),0);
-    mo_total.textContent = money(total);
-    mo_count.textContent = `${monthItems.length} 筆`;
-
-    const catMap = new Map();
-    monthItems.forEach(x=> catMap.set(x.category, (catMap.get(x.category)||0)+(Number(x.amount)||0)));
-    const cats = Array.from(catMap.entries()).sort((a,b)=>b[1]-a[1]);
-
-    mo_catSummary.innerHTML="";
-    if(cats.length===0){
-      mo_catSummary.innerHTML = `<div class="muted">這個月還沒有支出資料。</div>`;
-    }else{
-      cats.forEach(([cat,sum])=>{
-        const div=document.createElement("div");
-        div.style.padding="8px 10px";
-        div.style.border="1px solid var(--line)";
-        div.style.borderRadius="12px";
-        div.style.background="rgba(255,255,255,.02)";
-        div.innerHTML = `<span class="mini">${esc(cat)}</span><div class="right"><b>${money(sum)}</b></div>`;
-        div.style.display="grid";
-        div.style.gridTemplateColumns="1fr auto";
-        mo_catSummary.appendChild(div);
-      });
-    }
-
-    mo_tbody.innerHTML="";
-    monthItems.forEach(x=>{
-      const tr=document.createElement("tr");
-      tr.innerHTML = `
-        <td>${esc(x.date)}</td>
-        <td>${esc(x.category)}</td>
-        <td>${esc(x.note||"")}</td>
-        <td class="right">${money(x.amount)}</td>
-        <td class="right"><button class="btn-danger" data-del="${x.id}" type="button">刪除</button></td>
-      `;
-      mo_tbody.appendChild(tr);
-    });
-
-    mo_tbody.querySelectorAll("[data-del]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const id=btn.getAttribute("data-del");
-        if(confirm("要刪除這筆支出嗎？")) deleteExpense(id);
-      });
-    });
-  }
-
-  // ===== backup =====
-  const bk_exportBtn=$("bk_exportBtn"), bk_importInput=$("bk_importInput"), bk_wipeBtn=$("bk_wipeBtn");
-
-  function exportAll(){
-    const payload = {
-      version: 2,
-      exportedAt: Date.now(),
-      categories: loadCats(),
-      expense: load(KEY_EXP, []),
-      income: load(KEY_PAY, {}),
-      loans: load(KEY_LOAN, []),
-      loanPaid: load(KEY_LOAN_PAID, {}),
-      settings: getSettings(),
-      balanceStart: load(KEY_BAL_START, {}),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download=`記帳備份_${thisMonthISO()}_${Date.now()}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  function importAll(file){
-    if(!file) return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{
-        const p=JSON.parse(String(reader.result||"{}"));
-        if(!p || typeof p!=="object") throw new Error();
-
-        if(p.categories) saveCats(Array.isArray(p.categories)?p.categories:DEFAULT_CATS.slice());
-        if(p.expense) save(KEY_EXP, Array.isArray(p.expense)?p.expense:[]);
-        if(p.income) save(KEY_PAY, (p.income && typeof p.income==="object")?p.income:{});
-        if(p.loans) save(KEY_LOAN, Array.isArray(p.loans)?p.loans:[]);
-        if(p.loanPaid) save(KEY_LOAN_PAID, (p.loanPaid && typeof p.loanPaid==="object")?p.loanPaid:{});
-        if(p.settings) save(KEY_SET, (p.settings && typeof p.settings==="object")?p.settings:defaultSettings());
-        if(p.balanceStart) save(KEY_BAL_START, (p.balanceStart && typeof p.balanceStart==="object")?p.balanceStart:{});
-
-        alert("匯入完成");
-        renderCats(); renderExpense(); renderIncome(); renderLoans(); renderSettings(); renderBalance();
-      }catch{
-        alert("匯入失敗：檔案格式不正確");
-      }finally{
-        bk_importInput.value="";
-      }
-    };
-    reader.readAsText(file, "utf-8");
-  }
-
-  function wipeAll(){
-    const sure = prompt("這會清除全部資料。確定請輸入：清除");
-    if(sure==="清除"){
-      [KEY_CATS,KEY_EXP,KEY_PAY,KEY_LOAN,KEY_LOAN_PAID,KEY_SET,KEY_BAL_START].forEach(k=>localStorage.removeItem(k));
-      alert("已清除");
-      location.reload();
-    }else{
-      alert("已取消");
-    }
-  }
-
-  // ===== income =====
-  const in_month=$("in_month");
-  const sh_hours=$("sh_hours"), sh_bonus=$("sh_bonus"), sh_insured=$("sh_insured");
-  const sh_groupl_base=$("sh_groupl_base"), sh_base_hours=$("sh_base_hours");
-  const sh_calcSave=$("sh_calcSave"), sh_clear=$("sh_clear");
-  const ot_amount=$("ot_amount"), ot_save=$("ot_save");
-
-  const sum_income=$("sum_income"), sum_hint=$("sum_hint"), sh_summary=$("sh_summary"), ot_summary=$("ot_summary"), net_summary=$("net_summary");
-
-  function loadIncome(){ return load(KEY_PAY, {}); }
-  function saveIncome(obj){ save(KEY_PAY, obj); }
-
-  function calcShopee(ym){
-    const s = getSettings();
-    const hours = Number(sh_hours.value)||0;
-    const bonus = Number(sh_bonus.value)||0;
-    const gross = roundMoney(hours * 205 + bonus);
-
-    let insured = Number(sh_insured.value);
-    if(!Number.isFinite(insured) || insured<=0) insured = gross;
-    insured = roundMoney(insured);
-
-    const workerShare = (Number(s.worker_share_percent)||20)/100;
-    const liRate = (Number(s.li_rate_percent)||11.5)/100;
-    const eiRate = (Number(s.ei_rate_percent)||1.0)/100;
-
-    const li = roundMoney(insured * liRate * workerShare);
-    const ei = roundMoney(insured * eiRate * workerShare);
-
-    const baseFee = Number(sh_groupl_base.value)||0;
-    const baseH = Number(sh_base_hours.value)||160;
-    const group = baseH>0 ? roundMoney(baseFee * (hours/baseH)) : 0;
-
-    const admin = Number(s.admin_fee)||30;
-    const net = roundMoney(gross - li - ei - group - admin);
-
-    return { ym, hours, bonus, hourly:205, gross, insured, deductions:{li,ei,group,admin}, net, updatedAt: Date.now() };
-  }
-
-  function saveShopee(){
-    const ym = in_month.value || thisMonthISO();
-    const rec = calcShopee(ym);
-    const all = loadIncome();
-    all[ym] = all[ym] || {};
-    all[ym].shopee = rec;
-    saveIncome(all);
-    alert("已保存本月蝦皮薪資");
-    renderIncome();
-    renderBalance();
-  }
-
-  function saveOther(){
-    const ym = in_month.value || thisMonthISO();
-    const amt = roundMoney(Number(ot_amount.value)||0);
-    const all = loadIncome();
-    all[ym] = all[ym] || {};
-    all[ym].other = { amount: amt, updatedAt: Date.now() };
-    saveIncome(all);
-    alert("已保存本月其他收入");
-    renderIncome();
-    renderBalance();
-  }
-
-  function renderIncome(){
-    const ym = in_month.value || thisMonthISO();
-    const all = loadIncome();
-    const m = all[ym] || {};
-
-    if(m.shopee){
-      sh_hours.value = m.shopee.hours ?? "";
-      sh_bonus.value = m.shopee.bonus ?? "";
-      sh_insured.value = m.shopee.insured ?? "";
-    }
-    if(m.other){
-      ot_amount.value = m.other.amount ?? "";
-    }
-
-    const sh = m.shopee;
-    const ot = m.other;
-
-    const shNet = sh ? (Number(sh.net)||0) : 0;
-    const otNet = ot ? (Number(ot.amount)||0) : 0;
-    const totalIncome = shNet + otNet;
-
-    sum_income.textContent = money(totalIncome);
-    sum_hint.textContent = totalIncome>0 ? "（實領）" : "先在左邊保存本月收入";
-
-    sh_summary.innerHTML = sh ? `
-      工時：${esc(sh.hours)} 小時<br/>
-      應領：<b>${money(sh.gross)}</b><br/>
-      投保薪資：${money(sh.insured)}<br/>
-      扣款：勞保 ${money(sh.deductions.li)} + 就保 ${money(sh.deductions.ei)} + 團保 ${money(sh.deductions.group)} + 行政 ${money(sh.deductions.admin)}<br/>
-      <span class="ok">實領：${money(sh.net)}</span>
-    ` : `<span class="muted">尚未保存本月蝦皮薪資。</span>`;
-
-    ot_summary.innerHTML = ot ? `<span class="ok">本月其他收入：${money(ot.amount)}</span>` : `<span class="muted">尚未保存本月其他收入。</span>`;
-
-    const expTotal = computeExpenseTotal(ym);
-    const net = totalIncome - expTotal;
-    net_summary.innerHTML = `
-      本月收入（實領）：<b>${money(totalIncome)}</b><br/>
-      本月支出：<b>${money(expTotal)}</b><br/>
-      ${net>=0 ? `<span class="ok">本月結餘：${money(net)}</span>` : `<span class="warn">本月超支：${money(Math.abs(net))}</span>`}
-    `;
-  }
-
-  // ===== loans =====
-  const ln_name=$("ln_name"), ln_amt=$("ln_amt"), ln_day=$("ln_day"), ln_acct=$("ln_acct"), ln_note=$("ln_note");
-  const ln_add=$("ln_add");
-  const ln_month=$("ln_month"), ln_tbody=$("ln_tbody"), ln_dueHint=$("ln_dueHint");
-
-  function loadLoans(){ return load(KEY_LOAN, []); }
-  function saveLoans(items){ save(KEY_LOAN, items); }
-  function loadLoanPaid(){ return load(KEY_LOAN_PAID, {}); }
-
-  function addLoan(){
-    const name = ln_name.value.trim();
-    const amount = roundMoney(Number(ln_amt.value)||0);
-    const day = Number(ln_day.value)||0;
-    const acct = ln_acct.value.trim();
-    const note = ln_note.value.trim();
-
-    if(!name){ alert("請填名稱"); return; }
-    if(!(amount>0)){ alert("請填每月金額"); return; }
-    if(!(day>=1 && day<=28)){ alert("期限建議填 1~28"); return; }
-
-    const items = loadLoans();
-    items.push({ id: uid(), name, amount, day, acct, note, createdAt: Date.now() });
-    saveLoans(items);
-
-    ln_name.value=""; ln_amt.value=""; ln_day.value=""; ln_acct.value=""; ln_note.value="";
-    renderLoans();
-    renderBalance();
-  }
-
-  function setPaid(ym, loanId, paid){
-    const map = loadLoanPaid();
-    map[ym] = map[ym] || {};
-    if(paid){
-      map[ym][loanId] = { paid: true, paidAt: Date.now() };
-    }else{
-      delete map[ym][loanId];
-    }
-    save(KEY_LOAN_PAID, map);
-    renderLoans();
-    renderBalance();
-  }
-
-  function countPaidTimes(loanId){
-    const map = loadLoanPaid();
-    let c=0;
-    for(const ym of Object.keys(map)){
-      if(map[ym] && map[ym][loanId]?.paid) c++;
-    }
-    return c;
-  }
-
-  function copyText(text){
-    if(!text){ alert("沒有帳戶內容"); return; }
-    navigator.clipboard?.writeText(text).then(()=>alert("已複製")).catch(()=>{
-      prompt("請長按複製：", text);
-    });
-  }
-
-  function renderLoans(){
-    const ym = ln_month.value || thisMonthISO();
-    const items = loadLoans();
-    const paidMap = loadLoanPaid();
-    const monthPaid = paidMap[ym] || {};
-
-    // due hint (within 7 days) for current month only
-    const now = new Date();
-    const [y,m] = ym.split("-").map(Number);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const hintLines = [];
-
-    items.forEach(l=>{
-      const due = new Date(y, m-1, Math.min(l.day, 28));
-      const diffDays = Math.round((due - today) / (1000*60*60*24));
-      const isThisMonth = (now.getFullYear()===y && (now.getMonth()+1)===m);
-      if(isThisMonth && !monthPaid[l.id]?.paid && diffDays>=0 && diffDays<=7){
-        hintLines.push(`「${l.name}」${l.day}號到期（剩 ${diffDays} 天）`);
-      }
-    });
-    ln_dueHint.textContent = hintLines.length ? `提醒：${hintLines.join("、")}` : "";
-
-    ln_tbody.innerHTML="";
-    if(items.length===0){
-      ln_tbody.innerHTML = `<tr><td colspan="5" class="muted">還沒有任何貸款/固定繳費，先在左邊新增一筆。</td></tr>`;
-      return;
-    }
-
-    items.forEach(l=>{
-      const isPaid = !!monthPaid[l.id]?.paid;
-      const paidTimes = countPaidTimes(l.id);
-
-      const tr=document.createElement("tr");
-      tr.innerHTML = `
-        <td>
-          <b>${esc(l.name)}</b>
-          <div class="mini">${esc(l.note||"")}</div>
-          <div class="mini">已繳：${paidTimes} 次</div>
-        </td>
-        <td class="right">${money(l.amount)}</td>
-        <td>${esc(String(l.day))} 號</td>
-        <td>
-          <button class="copyBtn" data-copy="${l.id}" type="button">複製</button>
-          <div class="mini" style="margin-top:6px;">${esc((l.acct||"").slice(0,28))}${(l.acct||"").length>28?"…":""}</div>
-        </td>
-        <td class="right">
-          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="checkbox" data-paid="${l.id}" ${isPaid?"checked":""} style="width:auto;"/>
-            <span class="${isPaid?"ok":"warn"}">${isPaid?"已繳":"未繳"}</span>
-          </label>
-        </td>
-      `;
-      ln_tbody.appendChild(tr);
-
-      tr.querySelector(`[data-copy="${l.id}"]`).addEventListener("click", ()=> copyText(l.acct||""));
-      tr.querySelector(`[data-paid="${l.id}"]`).addEventListener("change", (e)=> setPaid(ym, l.id, e.target.checked));
-    });
-  }
-
-  // ===== settings UI =====
-  const set_li_rate=$("set_li_rate"), set_ei_rate=$("set_ei_rate"), set_worker_share=$("set_worker_share"), set_admin_fee=$("set_admin_fee");
-  const set_save=$("set_save");
-
-  function renderSettings(){
-    const s = getSettings();
-    set_li_rate.value = s.li_rate_percent;
-    set_ei_rate.value = s.ei_rate_percent;
-    set_worker_share.value = s.worker_share_percent;
-    set_admin_fee.value = s.admin_fee;
-  }
-
-  function saveSettings(){
-    const next = {
-      li_rate_percent: Number(set_li_rate.value)||11.5,
-      ei_rate_percent: Number(set_ei_rate.value)||1.0,
-      worker_share_percent: Number(set_worker_share.value)||20,
-      admin_fee: Number(set_admin_fee.value)||30
-    };
-    save(KEY_SET, next);
-    alert("已保存設定");
-    renderIncome();
-    renderBalance();
-  }
-
-  // ===== balance dashboard =====
-  const bal_month = $("bal_month");
-  const bal_start = $("bal_start");
-  const bal_now = $("bal_now");
-  const bal_status = $("bal_status");
-  const bal_income = $("bal_income");
-  const bal_expense = $("bal_expense");
-  const bal_loan_due = $("bal_loan_due");
-  const bal_loan_paid = $("bal_loan_paid");
-
-  function getBalanceStartMap(){
-    const m = load(KEY_BAL_START, {});
-    return (m && typeof m === "object") ? m : {};
-  }
-  function setBalanceStart(ym, val){
-    const m = getBalanceStartMap();
-    if(val === "" || val === null || typeof val === "undefined"){
-      delete m[ym];
-    }else{
-      m[ym] = Number(val) || 0;
-    }
-    save(KEY_BAL_START, m);
-  }
-  function getBalanceStart(ym){
-    const m = getBalanceStartMap();
-    return Number(m[ym] ?? 0) || 0;
-  }
-
-  function computeIncomeNet(ym){
-    const all = load(KEY_PAY, {});
-    const m = all[ym] || {};
-    const sh = m.shopee ? Number(m.shopee.net)||0 : 0;
-    const ot = m.other ? Number(m.other.amount)||0 : 0;
-    return sh + ot;
-  }
-
-  function computeExpenseTotal(ym){
-    return loadExp().filter(x=>monthOf(x.date)===ym).reduce((s,x)=>s+(Number(x.amount)||0),0);
-  }
-
-  function computeLoanTotals(ym){
-    const loans = loadLoans();
-    const paidMap = loadLoanPaid();
-    const monthPaid = paidMap[ym] || {};
-
-    const due = loans.reduce((s,l)=>s+(Number(l.amount)||0),0);
-    const paid = loans.reduce((s,l)=> s + (monthPaid[l.id]?.paid ? (Number(l.amount)||0) : 0), 0);
-    return { due, paid };
-  }
-
-  function renderBalance(){
-    const ym = bal_month.value || thisMonthISO();
-
-    const startVal = getBalanceStart(ym);
-    bal_start.value = startVal ? String(startVal) : "";
-
-    const income = computeIncomeNet(ym);
-    const expense = computeExpenseTotal(ym);
-    const { due, paid } = computeLoanTotals(ym);
-
-    // 用「已繳」才扣：符合你勾選已繳＝真的付出去
-    const now = startVal + income - expense - paid;
-
-    bal_income.textContent = money(income);
-    bal_expense.textContent = money(expense);
-    bal_loan_due.textContent = money(due);
-    bal_loan_paid.textContent = money(paid);
-    bal_now.textContent = money(now);
-
-    bal_status.innerHTML = now >= 0
-      ? `<span class="ok">OK</span>`
-      : `<span class="warn">餘額不足</span>`;
-  }
-
-  // ===== sync months (balance <-> pages) =====
-  function syncAllMonths(ym){
-    bal_month.value = ym;
-    mo_month.value = ym;
-    in_month.value = ym;
-    ln_month.value = ym;
-  }
-
-  // ===== wire events =====
-  ex_date.value = todayISO();
-
-  const initMonth = thisMonthISO();
-  syncAllMonths(initMonth);
-
-  // categories
-  cat_addBtn.addEventListener("click", ()=>{
-    const name = (cat_new.value||"").trim();
-    if(!name) return alert("請輸入分類名稱");
-    const cats = loadCats();
-    cats.push(name);
-    saveCats(cats);
-    cat_new.value="";
-    renderCats();
-  });
-
-  cat_resetBtn.addEventListener("click", ()=>{
-    if(confirm("要重置成預設分類嗎？")){
-      saveCats(DEFAULT_CATS.slice());
-      renderCats();
-      renderExpense();
-      renderIncome();
-      renderBalance();
-    }
-  });
-
-  // expense
-  ex_addBtn.addEventListener("click", addExpense);
-  ex_clearFormBtn.addEventListener("click", ()=>{ ex_amount.value=""; ex_note.value=""; });
-
-  mo_search.addEventListener("input", ()=>{ renderExpense(); renderBalance(); });
-
-  mo_prevBtn.addEventListener("click", ()=>{
-    const ym = shiftMonth(mo_month.value||initMonth, -1);
-    syncAllMonths(ym);
-    renderExpense(); renderIncome(); renderLoans(); renderSettings(); renderBalance();
-  });
-  mo_nextBtn.addEventListener("click", ()=>{
-    const ym = shiftMonth(mo_month.value||initMonth, +1);
-    syncAllMonths(ym);
-    renderExpense(); renderIncome(); renderLoans(); renderSettings(); renderBalance();
-  });
-  mo_month.addEventListener("change", ()=>{
-    const ym = mo_month.value || initMonth;
-    syncAllMonths(ym);
-    renderExpense(); renderIncome(); renderLoans(); renderSettings(); renderBalance();
-  });
-
-  // backup
-  bk_exportBtn.addEventListener("click", exportAll);
-  bk_importInput.addEventListener("change", (e)=> importAll(e.target.files?.[0]));
-  bk_wipeBtn.addEventListener("click", wipeAll);
-
-  // income
-  sh_calcSave.addEventListener("click", saveShopee);
-  sh_clear.addEventListener("click", ()=>{ sh_hours.value=""; sh_bonus.value=""; sh_insured.value=""; });
-  ot_save.addEventListener("click", saveOther);
-  in_month.addEventListener("change", ()=>{
-    const ym = in_month.value || initMonth;
-    syncAllMonths(ym);
-    renderIncome(); renderExpense(); renderLoans(); renderSettings(); renderBalance();
-  });
-
-  // loans
-  ln_add.addEventListener("click", addLoan);
-  ln_month.addEventListener("change", ()=>{
-    const ym = ln_month.value || initMonth;
-    syncAllMonths(ym);
-    renderLoans(); renderExpense(); renderIncome(); renderSettings(); renderBalance();
-  });
-
-  // settings
-  set_save.addEventListener("click", saveSettings);
-
-  // balance
-  bal_month.addEventListener("change", ()=>{
-    const ym = bal_month.value || initMonth;
-    syncAllMonths(ym);
-    renderExpense(); renderIncome(); renderLoans(); renderSettings(); renderBalance();
-  });
-
-  bal_start.addEventListener("input", ()=>{
-    const ym = bal_month.value || initMonth;
-    const raw = bal_start.value;
-    if(raw === ""){
-      setBalanceStart(ym, "");
-    }else{
-      setBalanceStart(ym, Number(raw));
-    }
-    renderBalance();
-  });
-
-  // ===== initial render =====
-  renderCats();
-  renderExpense();
-  renderIncome();
-  renderLoans();
-  renderSettings();
-  renderBalance();
-})();
+const $=id=>document.getElementById(id);
+const K={
+ exp:"exp_v1", inc:"inc_v1", fee:"fee_v1", bal:"bal_v1"
+};
+const load=(k,d)=>JSON.parse(localStorage.getItem(k)||JSON.stringify(d));
+const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const ym=()=>new Date().toISOString().slice(0,7);
+$("bal_month").value=ym();
+$("ex_date").value=new Date().toISOString().slice(0,10);
+
+/* 支出 */
+function renderExp(){
+ let ex=load(K.exp,[]);
+ let tb=$("ex_list"); tb.innerHTML="";
+ let total=0;
+ ex.filter(x=>x.ym===$("bal_month").value).forEach(x=>{
+   total+=x.amt;
+   let tr=document.createElement("tr");
+   tr.innerHTML=`<td>${x.date}</td><td>${x.note}</td>
+   <td class="right">${x.amt}</td>
+   <td><button onclick="delExp('${x.id}')">🗑️</button></td>`;
+   tb.appendChild(tr);
+ });
+ return total;
+}
+function delExp(id){
+ save(K.exp,load(K.exp,[]).filter(x=>x.id!==id));
+ renderAll();
+}
+$("ex_add").onclick=()=>{
+ let ex=load(K.exp,[]);
+ ex.push({id:Date.now(),ym:$("bal_month").value,date:$("ex_date").value,
+ amt:+$("ex_amt").value,note:$("ex_note").value});
+ save(K.exp,ex);
+ $("ex_amt").value="";$("ex_note").value="";
+ renderAll();
+};
+
+/* 收入 */
+$("in_type").onchange=()=>{
+ $("shopee_box").style.display=$("in_type").value==="shopee"?"block":"none";
+ $("other_box").style.display=$("in_type").value==="other"?"block":"none";
+};
+
+function renderInc(){
+ let inc=load(K.inc,[]);
+ let tb=$("in_list"); tb.innerHTML="";
+ let sum=0;
+ inc.filter(x=>x.ym===$("bal_month").value).forEach(x=>{
+   sum+=x.amt;
+   let tr=document.createElement("tr");
+   tr.innerHTML=`<td>${x.type}</td><td>${x.note}</td>
+   <td class="right">${x.amt}</td>
+   <td><button onclick="delInc('${x.id}')">🗑️</button></td>`;
+   tb.appendChild(tr);
+ });
+ return sum;
+}
+function delInc(id){
+ save(K.inc,load(K.inc,[]).filter(x=>x.id!==id));
+ renderAll();
+}
+$("in_add").onclick=()=>{
+ let inc=load(K.inc,[]);
+ let ymv=$("bal_month").value;
+ if($("in_type").value==="shopee"){
+   inc=inc.filter(x=>!(x.ym===ymv&&x.type==="蝦皮"));
+   inc.push({id:Date.now(),ym:ymv,type:"蝦皮",
+     amt:Math.round($("sh_hours").value*205),note:$("in_note").value});
+ }else{
+   inc.push({id:Date.now(),ym:ymv,type:"其他",
+     amt:+$("ot_amt").value,note:$("in_note").value});
+ }
+ save(K.inc,inc);
+ $("sh_hours").value="";$("ot_amt").value="";$("in_note").value="";
+ renderAll();
+};
+
+/* 固定繳費 */
+function renderFee(){
+ let fee=load(K.fee,[]);
+ let tb=$("fe_list"); tb.innerHTML="";
+ let sum=0;
+ fee.filter(x=>x.on).forEach(x=>{
+   sum+=x.amt;
+   let tr=document.createElement("tr");
+   tr.innerHTML=`<td>${x.name}</td><td class="right">${x.amt}</td>
+   <td>${x.on?"啟用":"停用"}</td>
+   <td>
+     <button onclick="toggleFee('${x.id}')">⏸️</button>
+     <button onclick="delFee('${x.id}')">🗑️</button>
+   </td>`;
+   tb.appendChild(tr);
+ });
+ return sum;
+}
+function toggleFee(id){
+ let f=load(K.fee,[]);
+ let i=f.find(x=>x.id===id); i.on=!i.on;
+ save(K.fee,f); renderAll();
+}
+function delFee(id){
+ save(K.fee,load(K.fee,[]).filter(x=>x.id!==id));
+ renderAll();
+}
+$("fe_add").onclick=()=>{
+ let f=load(K.fee,[]);
+ f.push({id:Date.now(),name:$("fe_name").value,amt:+$("fe_amt").value,on:true});
+ save(K.fee,f);
+ $("fe_name").value="";$("fe_amt").value="";
+ renderAll();
+};
+
+/* 餘額 */
+function renderAll(){
+ let exp=renderExp();
+ let inc=renderInc();
+ let fee=renderFee();
+ let start=+$("bal_start").value||0;
+ let bal=start+inc-exp-fee;
+ $("bal_now").textContent=bal;
+ $("bal_state").innerHTML=bal>=0?'<span class="ok">OK</span>':'<span class="warn">不足</span>';
+}
+$("bal_month").onchange=renderAll;
+$("bal_start").oninput=renderAll;
+renderAll();
 </script>
 </body>
 </html>
