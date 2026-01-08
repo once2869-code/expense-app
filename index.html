@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>記帳整合版（含圖表與統計）</title>
-
+<title>記帳整合版（穩定版含統計）</title>
 <style>
   :root{
     --bg:#0b1020; --card:#121a33; --text:#e9eeff; --muted:#aab3d6;
@@ -40,13 +39,15 @@
   .ok{color:var(--ok);font-weight:900}
   .warn{color:#ffd27a;font-weight:900}
 
-  /* Pure CSS Tabs */
+  /* Pure CSS Tabs (iPhone stable) */
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
   .tabs label{
     padding:9px 12px;border-radius:999px;border:1px solid var(--line);
     background:rgba(255,255,255,.02);color:var(--text);cursor:pointer;user-select:none
   }
-  input[name="tab"]{position:absolute;left:-9999px}
+  input[name="tab"]{
+    position:fixed;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;
+  }
   #t-exp:checked ~ .tabs label[for="t-exp"],
   #t-inc:checked ~ .tabs label[for="t-inc"],
   #t-fix:checked ~ .tabs label[for="t-fix"],
@@ -65,27 +66,19 @@
 
   .inlineBtns{display:flex;gap:8px;flex-wrap:wrap}
   .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.02);font-size:11px;color:var(--muted)}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
-  .chartBox{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
-  canvas{max-width:100%;height:280px}
 </style>
-
-<!-- Chart.js (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div>
-      <h1>記帳整合版（含圖表與統計）</h1>
-      <div class="muted">資料存在此裝置瀏覽器（localStorage）。建議每月匯出 JSON 存到 iCloud Drive。</div>
+      <h1>記帳整合版（穩定版）</h1>
+      <div class="muted">若你剛剛遇到「按鈕都按不了」，通常是 script 壞掉；這版不靠外部套件，先確保所有新增/編輯可用。</div>
     </div>
-    <span class="pill" id="pill_migrated">已載入</span>
+    <span class="pill" id="pill_state">載入中…</span>
   </div>
 
-  <!-- Balance -->
   <div class="card">
     <h2>即時餘額</h2>
     <div class="row">
@@ -108,7 +101,6 @@
     </div>
   </div>
 
-  <!-- Tabs -->
   <input id="t-exp" type="radio" name="tab" checked>
   <input id="t-inc" type="radio" name="tab">
   <input id="t-fix" type="radio" name="tab">
@@ -127,7 +119,6 @@
 
   <div class="panels">
 
-    <!-- Expenses -->
     <div id="p-exp" class="panel card">
       <h2>支出</h2>
       <div class="row">
@@ -140,11 +131,11 @@
           <input id="ex_amt" type="number" placeholder="例如 120">
         </div>
       </div>
-      <label>備註（用於品項統計與分類）</label>
-      <input id="ex_note" placeholder="例如 午餐 / 咖啡 / 交通 / 房租 / 水電">
+      <label>備註（用於品項統計）</label>
+      <input id="ex_note" placeholder="例如 午餐 / 咖啡 / 交通">
 
       <div class="inlineBtns" style="margin-top:10px">
-        <button class="btn" id="ex_save">新增支出</button>
+        <button class="btn" id="ex_save" type="button">新增支出</button>
         <button class="btn-ghost" id="ex_cancel" type="button" style="display:none">取消編輯</button>
       </div>
 
@@ -154,7 +145,6 @@
       </table>
     </div>
 
-    <!-- Incomes -->
     <div id="p-inc" class="panel card">
       <h2>收入</h2>
 
@@ -199,7 +189,7 @@
       <input id="in_note" placeholder="例如 本月薪資 / 現金收入">
 
       <div class="inlineBtns" style="margin-top:10px">
-        <button class="btn" id="in_save">新增收入</button>
+        <button class="btn" id="in_save" type="button">新增收入</button>
         <button class="btn-ghost" id="in_cancel" type="button" style="display:none">取消編輯</button>
       </div>
 
@@ -209,10 +199,8 @@
       </table>
     </div>
 
-    <!-- Fixed -->
     <div id="p-fix" class="panel card">
       <h2>固定支出 / 貸款</h2>
-
       <div class="row">
         <div>
           <label>名稱</label>
@@ -223,23 +211,21 @@
           <input id="fx_amt" type="number" placeholder="例如 3500">
         </div>
       </div>
-
       <div class="row">
         <div>
-          <label>繳費日（1-31，可空白）</label>
+          <label>繳費日（可空白）</label>
           <input id="fx_day" type="number" placeholder="例如 10">
         </div>
         <div>
-          <label>繳款銀行帳戶（可空白）</label>
+          <label>銀行帳戶（可空白）</label>
           <input id="fx_acct" placeholder="可貼上帳號，之後可複製">
         </div>
       </div>
-
       <label>備註</label>
-      <textarea id="fx_note" placeholder="例如 期限 / 銀行名稱 / 分期說明"></textarea>
+      <textarea id="fx_note" placeholder="例如 期限 / 銀行名稱"></textarea>
 
       <div class="inlineBtns" style="margin-top:10px">
-        <button class="btn" id="fx_save">新增固定支出</button>
+        <button class="btn" id="fx_save" type="button">新增固定支出</button>
         <button class="btn-ghost" id="fx_cancel" type="button" style="display:none">取消編輯</button>
       </div>
 
@@ -247,35 +233,15 @@
         <thead><tr><th>名稱</th><th class="right">金額</th><th>狀態</th><th class="right">操作</th></tr></thead>
         <tbody id="fx_list"></tbody>
       </table>
-      <div class="small" style="margin-top:10px">
-        本月勾「已繳」才會扣入餘額；停用後不影響餘額。每筆會顯示「已繳 X 次」（跨月累計）。
-      </div>
+      <div class="small" style="margin-top:10px">本月勾「已繳」才扣入餘額；每筆會顯示「已繳 X 次」。</div>
     </div>
 
-    <!-- Reports -->
     <div id="p-rep" class="panel card">
       <h2>報表（本月）</h2>
-      <div class="small">會跟著你上方選的「月份」自動切換。</div>
-
-      <div class="grid2" style="margin-top:12px">
-        <div class="chartBox">
-          <div class="muted">支出分類圓餅圖</div>
-          <canvas id="chart_pie"></canvas>
-          <div class="small" id="pie_note" style="margin-top:6px"></div>
-        </div>
-        <div class="chartBox">
-          <div class="muted">收入 vs 支出 vs 固定（已繳）</div>
-          <canvas id="chart_bar"></canvas>
-          <div class="small" id="bar_note" style="margin-top:6px"></div>
-        </div>
-      </div>
+      <div class="small" id="rep_summary"></div>
 
       <div class="card" style="margin-top:12px">
         <h2 style="margin:0 0 8px">消費品項統計（依支出備註）</h2>
-        <div class="small">
-          規則：先抓「關鍵字品項」（午餐/咖啡/交通…），找不到才用句子前段當品項。你越固定用詞，統計越準。
-        </div>
-
         <table>
           <thead>
             <tr>
@@ -288,64 +254,55 @@
           </thead>
           <tbody id="item_table"></tbody>
         </table>
-
         <div class="small" id="item_note" style="margin-top:8px"></div>
       </div>
     </div>
 
-    <!-- Settings -->
     <div id="p-set" class="panel card">
       <h2>設定（蝦皮扣款預設）</h2>
-      <div class="small">先用預設值；如果你拿到薪資單要對齊，再調整即可。</div>
+      <div class="small">先用預設值；之後要對齊薪資單可再調。</div>
 
       <div class="row3">
         <div>
           <label>勞保普通事故費率</label>
-          <input id="s_labor_rate" type="number" step="0.0001" placeholder="0.115">
+          <input id="s_labor_rate" type="number" step="0.0001">
         </div>
         <div>
           <label>就保費率</label>
-          <input id="s_emp_rate" type="number" step="0.0001" placeholder="0.01">
+          <input id="s_emp_rate" type="number" step="0.0001">
         </div>
         <div>
           <label>勞工自付比例</label>
-          <input id="s_worker_share" type="number" step="0.0001" placeholder="0.2">
+          <input id="s_worker_share" type="number" step="0.0001">
         </div>
       </div>
-
       <div class="row3">
         <div>
           <label>團保（月額）</label>
-          <input id="s_group_monthly" type="number" placeholder="210">
+          <input id="s_group_monthly" type="number">
         </div>
         <div>
           <label>團保滿月工時</label>
-          <input id="s_group_full_hours" type="number" placeholder="160">
+          <input id="s_group_full_hours" type="number">
         </div>
         <div>
           <label>行政費（每月）</label>
-          <input id="s_admin_fee" type="number" placeholder="30">
+          <input id="s_admin_fee" type="number">
         </div>
       </div>
 
-      <button class="btn" id="save_settings" style="margin-top:10px">儲存設定</button>
+      <button class="btn" id="save_settings" type="button" style="margin-top:10px">儲存設定</button>
     </div>
 
-    <!-- Backup -->
     <div id="p-bak" class="panel card">
       <h2>備份 / 還原</h2>
-      <div class="small">建議每月匯出一次，存到 iCloud Drive。換手機時再匯入。</div>
-
       <div class="inlineBtns" style="margin-top:10px">
-        <button class="btn" id="btn_export" type="button">匯出 JSON（下載檔）</button>
+        <button class="btn" id="btn_export" type="button">匯出 JSON</button>
         <button class="btn-ghost" id="btn_import" type="button">匯入 JSON</button>
       </div>
-
       <input id="import_file" type="file" accept="application/json" style="display:none">
-
       <div class="card" style="margin-top:12px">
         <h2 style="margin:0 0 8px">危險區（清空資料）</h2>
-        <div class="small">只會清空整合版資料（app_*_v3 / app_*_v3_rep）。</div>
         <button class="btn-danger" id="btn_clear" type="button" style="margin-top:10px">清空整合版資料</button>
       </div>
     </div>
@@ -357,32 +314,25 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // Unified keys
   const KEY = {
     EXP: "app_expenses_v3",
     INC: "app_incomes_v3",
     FIX: "app_fixed_v3",
     SET: "app_settings_v3",
-    START_BY_MONTH: "app_start_balance_by_month_v3",
-    MIG: "app_migrated_v3",
+    START: "app_start_balance_by_month_v3",
+    MIG: "app_migrated_v3"
   };
 
   const nowYM = () => new Date().toISOString().slice(0,7);
   const todayISO = () => new Date().toISOString().slice(0,10);
   const uid = () => (Date.now().toString(36) + Math.random().toString(36).slice(2,8));
+  const money = (n) => String(Math.round(Number(n || 0)));
 
   const load = (k, fallback) => {
-    try {
-      const raw = localStorage.getItem(k);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch { return fallback; }
+    try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fallback)); }
+    catch { return fallback; }
   };
   const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-
-  const money = (n) => {
-    const x = Number(n || 0);
-    return isFinite(x) ? Math.round(x).toString() : "0";
-  };
 
   const defaultSettings = {
     labor_rate: 0.115,
@@ -393,96 +343,618 @@
     admin_fee: 30
   };
 
-  // ===== Migration: also accept earlier keys from this conversation =====
+  function loadSettings() {
+    const s = load(KEY.SET, null) || {};
+    const merged = { ...defaultSettings, ...s };
+    save(KEY.SET, merged);
+    return merged;
+  }
+
+  function calcShopee(hours, bonus, rate, s) {
+    const h = Number(hours || 0);
+    const b = Number(bonus || 0);
+    const r = Number(rate || 205);
+    const gross = h * r + b;
+    const base = gross;
+    const labor = Math.round(base * s.labor_rate * s.worker_share);
+    const emp = Math.round(base * s.emp_rate * s.worker_share);
+    const group = Math.round(s.group_monthly * (h / s.group_full_hours));
+    const admin = Math.round(s.admin_fee);
+    const net = Math.round(gross - labor - emp - group - admin);
+    return { gross: Math.round(gross), labor, emp, group, admin, net };
+  }
+
+  // ---- migration from older keys used in this conversation ----
   function migrateOnce() {
     const already = load(KEY.MIG, false);
-    if (already) return { migrated: false, note: "已完成搬移/或已使用整合版" };
+    if (already) return "已完成搬移/或已使用整合版";
 
-    const hasNew = (load(KEY.EXP, []).length || load(KEY.INC, []).length || load(KEY.FIX, []).length);
-    if (hasNew) {
-      save(KEY.MIG, true);
-      return { migrated: false, note: "整合版已有資料" };
-    }
+    const hasNew = load(KEY.EXP, []).length || load(KEY.INC, []).length || load(KEY.FIX, []).length;
+    if (hasNew) { save(KEY.MIG, true); return "整合版已有資料"; }
 
-    const pulled = { exp: [], inc: [], fix: [] };
+    const pull = (k) => (Array.isArray(load(k, [])) ? load(k, []) : []);
 
     const expKeys = ["exp_s15","exp_s1","exp_v1","exp_all_v2"];
     const incKeys = ["inc_s15","inc_s1","inc_v1","inc_all_v2"];
     const fixKeys = ["fix_s15","fix_full_v2","fix_all_v2"];
 
-    for (const k of expKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.exp.push(...arr); }
-    for (const k of incKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.inc.push(...arr); }
-    for (const k of fixKeys) { const arr = load(k, []); if (Array.isArray(arr) && arr.length) pulled.fix.push(...arr); }
+    let ex = [], inc = [], fix = [];
+    expKeys.forEach(k => ex.push(...pull(k)));
+    incKeys.forEach(k => inc.push(...pull(k)));
+    fixKeys.forEach(k => fix.push(...pull(k)));
 
-    const expNorm = normalizeExpenses(pulled.exp);
-    const incNorm = normalizeIncomes(pulled.inc);
-    const fixNorm = normalizeFixed(pulled.fix);
+    const exN = ex.map(x => ({
+      id: String(x.id || uid()),
+      ym: x.ym || (x.date ? String(x.date).slice(0,7) : nowYM()),
+      date: x.date || todayISO(),
+      amt: Math.round(Number(x.amt || 0)),
+      note: String(x.note || "")
+    }));
 
-    save(KEY.EXP, expNorm);
-    save(KEY.INC, incNorm);
-    save(KEY.FIX, fixNorm);
+    const incN = inc.map(x => ({
+      id: String(x.id || uid()),
+      ym: x.ym || nowYM(),
+      typeKey: x.typeKey || (x.type === "蝦皮" ? "shopee" : "other"),
+      type: (x.typeKey === "shopee" || x.type === "蝦皮") ? "蝦皮" : "其他",
+      amt: Math.round(Number(x.amt || 0)),
+      hours: Number(x.hours || 0),
+      bonus: Number(x.bonus || 0),
+      rate: Number(x.rate || 205),
+      tag: String(x.tag || ""),
+      note: String(x.note || ""),
+      breakdown: x.breakdown
+    }));
 
-    const s = load(KEY.SET, null);
-    if (!s) save(KEY.SET, defaultSettings);
+    const fixN = fix.map(x => {
+      const paidYms = Array.isArray(x.paidYms) ? x.paidYms.map(String)
+                    : (typeof x.paidYm === "string" && x.paidYm ? [String(x.paidYm)] : []);
+      return {
+        id: String(x.id || uid()),
+        name: String(x.name || ""),
+        amt: Math.round(Number(x.amt || 0)),
+        day: String(x.day || ""),
+        acct: String(x.acct || ""),
+        note: String(x.note || ""),
+        enabled: x.enabled === undefined ? true : !!x.enabled,
+        paidYms: [...new Set(paidYms)].sort()
+      };
+    }).filter(x => x.name);
+
+    save(KEY.EXP, exN);
+    save(KEY.INC, incN);
+    save(KEY.FIX, fixN);
+    if (!load(KEY.SET, null)) save(KEY.SET, defaultSettings);
 
     save(KEY.MIG, true);
-    return { migrated: true, note: `已搬移：支出 ${expNorm.length} / 收入 ${incNorm.length} / 固定 ${fixNorm.length}` };
+    return `已搬移：支出 ${exN.length} / 收入 ${incN.length} / 固定 ${fixN.length}`;
   }
 
-  function normalizeExpenses(arr) {
-    const out = [];
-    for (const x of (Array.isArray(arr) ? arr : [])) {
-      if (!x) continue;
-      const ym = x.ym || (x.date ? String(x.date).slice(0,7) : null);
-      const date = x.date || todayISO();
-      const amt = Number(x.amt ?? x.amount ?? 0);
-      const note = (x.note ?? x.memo ?? "").toString();
-      if (!ym || !isFinite(amt)) continue;
-      out.push({ id: (x.id ?? uid()).toString(), ym, date, amt: Math.round(amt), note });
+  // ---- state ----
+  let editExpId = null;
+  let editIncId = null;
+  let editFixId = null;
+
+  function getYM() { return $("month").value; }
+
+  function loadStartMap() { return load(KEY.START, {}); }
+  function setStartForMonth(ym, v) {
+    const m = loadStartMap();
+    m[ym] = Number(v || 0);
+    save(KEY.START, m);
+  }
+  function restoreStartForMonth() {
+    const ym = getYM();
+    const m = loadStartMap();
+    $("start_balance").value = (m[ym] === undefined) ? "" : m[ym];
+  }
+
+  // ---- expense ----
+  function renderExpenses() {
+    const ym = getYM();
+    const items = load(KEY.EXP, []).filter(x => x.ym === ym).sort((a,b)=> (a.date||"").localeCompare(b.date||""));
+    const tb = $("ex_list");
+    tb.innerHTML = "";
+    for (const x of items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${x.date}</td>
+        <td>${escapeHtml(x.note || "")}</td>
+        <td class="right">${money(x.amt)}</td>
+        <td class="right">
+          <button class="btn-ghost" type="button" data-e="${x.id}">編輯</button>
+          <button class="btn-danger" type="button" data-d="${x.id}">刪除</button>
+        </td>`;
+      tb.appendChild(tr);
     }
-    return dedupeById(out);
+    tb.querySelectorAll("[data-e]").forEach(b => b.onclick = () => startEditExp(b.getAttribute("data-e")));
+    tb.querySelectorAll("[data-d]").forEach(b => b.onclick = () => delExp(b.getAttribute("data-d")));
   }
-
-  function normalizeIncomes(arr) {
-    const out = [];
-    for (const x of (Array.isArray(arr) ? arr : [])) {
-      if (!x) continue;
-      const ym = x.ym;
-      if (!ym) continue;
-      const typeKey = x.typeKey || (x.type === "蝦皮" ? "shopee" : "other");
-      const type = (typeKey === "shopee") ? "蝦皮" : "其他";
-      const amt = Number(x.amt ?? 0);
-      const note = (x.note ?? "").toString();
-      const hours = Number(x.hours ?? 0);
-      const bonus = Number(x.bonus ?? 0);
-      const rate = Number(x.rate ?? 205);
-      const tag = (x.tag ?? "").toString();
-      out.push({
-        id: (x.id ?? uid()).toString(),
-        ym, typeKey, type,
-        amt: Math.round(isFinite(amt) ? amt : 0),
-        hours: isFinite(hours) ? hours : 0,
-        bonus: isFinite(bonus) ? bonus : 0,
-        rate: isFinite(rate) ? rate : 205,
-        note, tag,
-        breakdown: x.breakdown
-      });
+  function startEditExp(id) {
+    const arr = load(KEY.EXP, []);
+    const x = arr.find(i => i.id === id);
+    if (!x) return;
+    editExpId = id;
+    $("ex_date").value = x.date;
+    $("ex_amt").value = x.amt;
+    $("ex_note").value = x.note || "";
+    $("ex_save").textContent = "更新支出";
+    $("ex_cancel").style.display = "block";
+  }
+  function cancelEditExp() {
+    editExpId = null;
+    $("ex_amt").value = "";
+    $("ex_note").value = "";
+    $("ex_save").textContent = "新增支出";
+    $("ex_cancel").style.display = "none";
+  }
+  function saveExp() {
+    const ym = getYM();
+    const date = $("ex_date").value || todayISO();
+    const amt = Math.round(Number($("ex_amt").value || 0));
+    const note = ($("ex_note").value || "").trim();
+    const arr = load(KEY.EXP, []);
+    if (editExpId) {
+      const i = arr.findIndex(x => x.id === editExpId);
+      if (i >= 0) arr[i] = { ...arr[i], ym, date, amt, note };
+      cancelEditExp();
+    } else {
+      arr.push({ id: uid(), ym, date, amt, note });
+      $("ex_amt").value = "";
+      $("ex_note").value = "";
     }
-    return dedupeById(out);
+    save(KEY.EXP, arr);
+    renderAll();
+  }
+  function delExp(id) {
+    save(KEY.EXP, load(KEY.EXP, []).filter(x => x.id !== id));
+    if (editExpId === id) cancelEditExp();
+    renderAll();
   }
 
-  function normalizeFixed(arr) {
-    const out = [];
-    for (const x of (Array.isArray(arr) ? arr : [])) {
-      if (!x) continue;
-      const id = (x.id ?? uid()).toString();
-      const name = (x.name ?? "").toString();
-      const amt = Number(x.amt ?? 0);
-      const day = (x.day ?? "").toString();
-      const acct = (x.acct ?? "").toString();
-      const note = (x.note ?? "").toString();
-      const enabled = (x.enabled === undefined) ? (x.on === undefined ? true : !!x.on) : !!x.enabled;
+  // ---- income ----
+  function switchIncomeUI() {
+    const t = $("in_type").value;
+    $("box_shopee").style.display = (t === "shopee") ? "block" : "none";
+    $("box_other").style.display  = (t === "other")  ? "block" : "none";
+    renderShopeePreview();
+  }
+  function renderShopeePreview() {
+    if ($("in_type").value !== "shopee") { $("sh_preview").textContent = ""; return; }
+    const s = loadSettings();
+    const c = calcShopee($("sh_hours").value, $("sh_bonus").value, $("sh_rate").value, s);
+    $("sh_preview").innerHTML =
+      `應領 ${money(c.gross)} / 扣：勞保 ${money(c.labor)}、就保 ${money(c.emp)}、團保 ${money(c.group)}、行政 ${money(c.admin)} / <b>實領 ${money(c.net)}</b>`;
+  }
 
-      let paidYms = [];
-      if (Array.isArray(x.paidYms)) paidYms = x.paidYms.map(String);
-      else if (typeof x.paidYm === "string" && x.paid
+  function renderIncomes() {
+    const ym = getYM();
+    const items = load(KEY.INC, []).filter(x => x.ym === ym);
+    const tb = $("in_list");
+    tb.innerHTML = "";
+    for (const x of items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${x.type}</td>
+        <td>${escapeHtml(x.note || "")}</td>
+        <td class="right">${money(x.amt)}</td>
+        <td class="right">
+          <button class="btn-ghost" type="button" data-ie="${x.id}">編輯</button>
+          <button class="btn-danger" type="button" data-id="${x.id}">刪除</button>
+        </td>`;
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-ie]").forEach(b => b.onclick = () => startEditInc(b.getAttribute("data-ie")));
+    tb.querySelectorAll("[data-id]").forEach(b => b.onclick = () => delInc(b.getAttribute("data-id")));
+  }
+
+  function startEditInc(id) {
+    const arr = load(KEY.INC, []);
+    const x = arr.find(i => i.id === id);
+    if (!x) return;
+    editIncId = id;
+    $("in_type").value = x.typeKey || (x.type === "蝦皮" ? "shopee" : "other");
+    switchIncomeUI();
+    $("in_note").value = x.note || "";
+    if ($("in_type").value === "shopee") {
+      $("sh_hours").value = x.hours || "";
+      $("sh_bonus").value = x.bonus || 0;
+      $("sh_rate").value  = x.rate  || 205;
+      renderShopeePreview();
+    } else {
+      $("ot_amt").value = x.amt || "";
+      $("ot_tag").value = x.tag || "";
+    }
+    $("in_save").textContent = "更新收入";
+    $("in_cancel").style.display = "block";
+  }
+
+  function cancelEditInc() {
+    editIncId = null;
+    $("sh_hours").value = "";
+    $("sh_bonus").value = "";
+    $("sh_rate").value = "";
+    $("ot_amt").value = "";
+    $("ot_tag").value = "";
+    $("in_note").value = "";
+    $("in_save").textContent = "新增收入";
+    $("in_cancel").style.display = "none";
+    switchIncomeUI();
+  }
+
+  function saveInc() {
+    const ym = getYM();
+    const arr = load(KEY.INC, []);
+    const note = ($("in_note").value || "").trim();
+
+    if ($("in_type").value === "shopee") {
+      const s = loadSettings();
+      const hours = Number($("sh_hours").value || 0);
+      const bonus = Number($("sh_bonus").value || 0);
+      const rate  = Number($("sh_rate").value  || 205);
+      const c = calcShopee(hours, bonus, rate, s);
+
+      // one shopee per month
+      const id = editIncId || uid();
+      const filtered = arr.filter(x => !(x.ym === ym && x.typeKey === "shopee" && x.id !== id));
+      const rec = { id, ym, typeKey:"shopee", type:"蝦皮", amt:c.net, hours, bonus, rate, note, breakdown:c };
+      const exists = filtered.some(x => x.id === id);
+      const out = exists ? filtered.map(x => x.id===id ? rec : x) : [...filtered, rec];
+
+      save(KEY.INC, out);
+      cancelEditInc();
+      renderAll();
+      return;
+    }
+
+    // other
+    const amt = Math.round(Number($("ot_amt").value || 0));
+    const tag = ($("ot_tag").value || "").trim();
+
+    if (editIncId) {
+      const i = arr.findIndex(x => x.id === editIncId);
+      if (i >= 0) arr[i] = { ...arr[i], ym, typeKey:"other", type:"其他", amt, tag, note };
+      save(KEY.INC, arr);
+      cancelEditInc();
+    } else {
+      arr.push({ id: uid(), ym, typeKey:"other", type:"其他", amt, tag, note });
+      save(KEY.INC, arr);
+      $("ot_amt").value = "";
+      $("ot_tag").value = "";
+      $("in_note").value = "";
+    }
+    renderAll();
+  }
+
+  function delInc(id) {
+    save(KEY.INC, load(KEY.INC, []).filter(x => x.id !== id));
+    if (editIncId === id) cancelEditInc();
+    renderAll();
+  }
+
+  // ---- fixed ----
+  function renderFixed() {
+    const ym = getYM();
+    const items = load(KEY.FIX, []);
+    const tb = $("fx_list");
+    tb.innerHTML = "";
+    for (const x of items) {
+      const enabled = x.enabled !== false;
+      const paidYms = Array.isArray(x.paidYms) ? x.paidYms : [];
+      const paidThis = paidYms.includes(ym);
+      const count = paidYms.length;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>
+          ${escapeHtml(x.name)}
+          <div class="small">${escapeHtml(x.note || "")}</div>
+          <div class="small">已繳 ${count} 次</div>
+        </td>
+        <td class="right">${money(x.amt)}</td>
+        <td>${enabled ? "啟用" : "停用"} / ${paidThis ? "已繳" : "未繳"}</td>
+        <td class="right">
+          <button class="btn-ghost" type="button" data-fp="${x.id}">${paidThis ? "取消已繳" : "本月已繳"}</button>
+          <button class="btn-ghost" type="button" data-ft="${x.id}">${enabled ? "停用" : "啟用"}</button>
+          <button class="btn-ghost" type="button" data-fe="${x.id}">編輯</button>
+          <button class="btn-danger" type="button" data-fd="${x.id}">刪除</button>
+        </td>`;
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-fp]").forEach(b => b.onclick = () => toggleFixPaid(b.getAttribute("data-fp")));
+    tb.querySelectorAll("[data-ft]").forEach(b => b.onclick = () => toggleFixEnabled(b.getAttribute("data-ft")));
+    tb.querySelectorAll("[data-fe]").forEach(b => b.onclick = () => startEditFix(b.getAttribute("data-fe")));
+    tb.querySelectorAll("[data-fd]").forEach(b => b.onclick = () => delFix(b.getAttribute("data-fd")));
+  }
+
+  function startEditFix(id) {
+    const arr = load(KEY.FIX, []);
+    const x = arr.find(i => i.id === id);
+    if (!x) return;
+    editFixId = id;
+    $("fx_name").value = x.name || "";
+    $("fx_amt").value = x.amt || "";
+    $("fx_day").value = x.day || "";
+    $("fx_acct").value = x.acct || "";
+    $("fx_note").value = x.note || "";
+    $("fx_save").textContent = "更新固定支出";
+    $("fx_cancel").style.display = "block";
+  }
+  function cancelEditFix() {
+    editFixId = null;
+    $("fx_name").value = "";
+    $("fx_amt").value = "";
+    $("fx_day").value = "";
+    $("fx_acct").value = "";
+    $("fx_note").value = "";
+    $("fx_save").textContent = "新增固定支出";
+    $("fx_cancel").style.display = "none";
+  }
+  function saveFix() {
+    const arr = load(KEY.FIX, []);
+    const name = ($("fx_name").value || "").trim();
+    const amt = Math.round(Number($("fx_amt").value || 0));
+    const day = ($("fx_day").value || "").trim();
+    const acct = ($("fx_acct").value || "").trim();
+    const note = ($("fx_note").value || "").trim();
+
+    if (!name) { alert("請輸入名稱"); return; }
+
+    if (editFixId) {
+      const i = arr.findIndex(x => x.id === editFixId);
+      if (i >= 0) arr[i] = { ...arr[i], name, amt, day, acct, note };
+      save(KEY.FIX, arr);
+      cancelEditFix();
+      renderAll();
+      return;
+    }
+
+    arr.push({ id: uid(), name, amt, day, acct, note, enabled:true, paidYms:[] });
+    save(KEY.FIX, arr);
+    $("fx_name").value = "";
+    $("fx_amt").value = "";
+    $("fx_day").value = "";
+    $("fx_acct").value = "";
+    $("fx_note").value = "";
+    renderAll();
+  }
+  function delFix(id) {
+    save(KEY.FIX, load(KEY.FIX, []).filter(x => x.id !== id));
+    if (editFixId === id) cancelEditFix();
+    renderAll();
+  }
+  function toggleFixEnabled(id) {
+    const arr = load(KEY.FIX, []);
+    const x = arr.find(i => i.id === id);
+    if (!x) return;
+    x.enabled = !(x.enabled !== false);
+    save(KEY.FIX, arr);
+    renderAll();
+  }
+  function toggleFixPaid(id) {
+    const ym = getYM();
+    const arr = load(KEY.FIX, []);
+    const x = arr.find(i => i.id === id);
+    if (!x) return;
+    x.paidYms = Array.isArray(x.paidYms) ? x.paidYms : [];
+    if (x.paidYms.includes(ym)) x.paidYms = x.paidYms.filter(m => m !== ym);
+    else x.paidYms.push(ym);
+    x.paidYms = [...new Set(x.paidYms)].sort();
+    save(KEY.FIX, arr);
+    renderAll();
+  }
+
+  // ---- balance & report ----
+  function renderBalanceAndReport() {
+    const ym = getYM();
+    const start = Number($("start_balance").value || 0);
+    const ex = load(KEY.EXP, []).filter(x => x.ym === ym);
+    const inc = load(KEY.INC, []).filter(x => x.ym === ym);
+    const fix = load(KEY.FIX, []);
+
+    const expSum = ex.reduce((a,b)=>a+Number(b.amt||0),0);
+    const incSum = inc.reduce((a,b)=>a+Number(b.amt||0),0);
+    const fixSum = fix.filter(x=>x.enabled!==false && Array.isArray(x.paidYms) && x.paidYms.includes(ym))
+                      .reduce((a,b)=>a+Number(b.amt||0),0);
+    const bal = Math.round(start + incSum - expSum - fixSum);
+
+    $("bal_now").textContent = money(bal);
+    $("bal_state").innerHTML = bal>=0 ? `<span class="ok">OK</span>` : `<span class="warn">不足</span>`;
+    $("bal_breakdown").innerHTML = `起始 ${money(start)} + 收入 ${money(incSum)} - 支出 ${money(expSum)} - 固定(已繳) ${money(fixSum)} = <b>${money(bal)}</b>`;
+
+    $("rep_summary").innerHTML =
+      `本月收入（實領）<b>${money(incSum)}</b>，支出 <b>${money(expSum)}</b>，固定（已繳）<b>${money(fixSum)}</b>，結餘 <b>${money(incSum-expSum-fixSum)}</b>。`;
+
+    renderItemStats(ex, expSum);
+  }
+
+  // ---- item stats (by note) ----
+  const CATEGORY_KW = [
+    ["食", ["早餐","午餐","晚餐","宵夜","飲料","咖啡","餐","便當","麵","飯","火鍋","炸雞","甜點"]],
+    ["行", ["交通","捷運","公車","計程車","油","加油","停車","高鐵","火車","客運","uber"]],
+    ["住", ["房租","租金","水電","電費","瓦斯","網路","管理費"]],
+    ["樂", ["娛樂","電影","遊戲","訂閱","netflix","spotify","apple","steam"]],
+    ["購物", ["蝦皮","momo","購物","衣","鞋","包","化妝","日用品"]],
+  ];
+
+  function normalizeItemName(note) {
+    const t = (note || "").trim();
+    if (!t) return "未填";
+
+    // 先用關鍵字把「品項」抓出來（你說你 A/B 都會用）
+    for (const [, kws] of CATEGORY_KW) {
+      for (const kw of kws) {
+        if (t.includes(kw)) return kw; // 品項用關鍵字本身（午餐/咖啡/交通…）
+      }
+    }
+
+    // 找不到就取句子前段（避免每筆都不同）
+    // 以空白、逗號、斜線、-、# 做切分
+    const first = t.split(/[\s,，\/\-#]/).filter(Boolean)[0];
+    return first ? first.slice(0, 12) : "未填";
+  }
+
+  function renderItemStats(expenses, expSum) {
+    const map = new Map();
+    for (const x of expenses) {
+      const name = normalizeItemName(x.note);
+      const amt = Number(x.amt||0);
+      if (!map.has(name)) map.set(name, {name, count:0, sum:0});
+      const o = map.get(name);
+      o.count += 1;
+      o.sum += amt;
+    }
+
+    const rows = [...map.values()].sort((a,b)=>b.sum-a.sum).slice(0, 20);
+    const tb = $("item_table");
+    tb.innerHTML = "";
+
+    if (!rows.length) {
+      tb.innerHTML = `<tr><td colspan="5" class="small">本月尚無支出</td></tr>`;
+      $("item_note").textContent = "";
+      return;
+    }
+
+    rows.forEach((r, idx) => {
+      const pct = expSum>0 ? Math.round((r.sum/expSum)*100) : 0;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${idx+1}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td class="right">${r.count}</td>
+        <td class="right">${money(r.sum)}</td>
+        <td class="right">${pct}%</td>`;
+      tb.appendChild(tr);
+    });
+
+    const top = rows[0];
+    $("item_note").innerHTML = `本月花最多的品項是「<b>${escapeHtml(top.name)}</b>」，共 <b>${top.count}</b> 次，合計 <b>${money(top.sum)}</b>。`;
+  }
+
+  // ---- settings ui ----
+  function renderSettingsUI() {
+    const s = loadSettings();
+    $("s_labor_rate").value = s.labor_rate;
+    $("s_emp_rate").value = s.emp_rate;
+    $("s_worker_share").value = s.worker_share;
+    $("s_group_monthly").value = s.group_monthly;
+    $("s_group_full_hours").value = s.group_full_hours;
+    $("s_admin_fee").value = s.admin_fee;
+  }
+  function saveSettingsFromUI() {
+    const s = {
+      labor_rate: Number($("s_labor_rate").value || defaultSettings.labor_rate),
+      emp_rate: Number($("s_emp_rate").value || defaultSettings.emp_rate),
+      worker_share: Number($("s_worker_share").value || defaultSettings.worker_share),
+      group_monthly: Number($("s_group_monthly").value || defaultSettings.group_monthly),
+      group_full_hours: Number($("s_group_full_hours").value || defaultSettings.group_full_hours),
+      admin_fee: Number($("s_admin_fee").value || defaultSettings.admin_fee),
+    };
+    save(KEY.SET, s);
+    alert("已儲存設定");
+    renderShopeePreview();
+  }
+
+  // ---- backup ----
+  function exportJSON() {
+    const payload = {
+      version: "stable_ok3",
+      exportedAt: new Date().toISOString(),
+      expenses: load(KEY.EXP, []),
+      incomes: load(KEY.INC, []),
+      fixed: load(KEY.FIX, []),
+      settings: load(KEY.SET, defaultSettings),
+      startBalanceByMonth: load(KEY.START, {})
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `記帳備份_${nowYM().replace("-","")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  function importJSONFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data) throw new Error();
+        if (Array.isArray(data.expenses)) save(KEY.EXP, data.expenses);
+        if (Array.isArray(data.incomes)) save(KEY.INC, data.incomes);
+        if (Array.isArray(data.fixed)) save(KEY.FIX, data.fixed);
+        if (data.settings) save(KEY.SET, { ...defaultSettings, ...data.settings });
+        if (data.startBalanceByMonth) save(KEY.START, data.startBalanceByMonth);
+        alert("匯入完成");
+        renderAll();
+      } catch {
+        alert("匯入失敗：檔案格式不正確");
+      }
+    };
+    reader.readAsText(file);
+  }
+  function clearData() {
+    if (!confirm("確定清空整合版資料？")) return;
+    Object.values(KEY).forEach(k => localStorage.removeItem(k));
+    alert("已清空");
+    location.reload();
+  }
+
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  function renderAll() {
+    renderExpenses();
+    renderIncomes();
+    renderFixed();
+    renderBalanceAndReport();
+  }
+
+  function init() {
+    $("month").value = nowYM();
+    $("ex_date").value = todayISO();
+
+    const msg = migrateOnce();
+    $("pill_state").textContent = msg;
+
+    // start balance per month
+    restoreStartForMonth();
+    $("start_balance").addEventListener("input", () => { setStartForMonth(getYM(), $("start_balance").value); renderBalanceAndReport(); });
+    $("month").addEventListener("change", () => { restoreStartForMonth(); cancelEditExp(); cancelEditInc(); cancelEditFix(); renderAll(); });
+
+    // expense
+    $("ex_save").addEventListener("click", saveExp);
+    $("ex_cancel").addEventListener("click", cancelEditExp);
+
+    // income
+    $("in_type").addEventListener("change", switchIncomeUI);
+    ["sh_hours","sh_bonus","sh_rate"].forEach(id => $(id).addEventListener("input", renderShopeePreview));
+    $("in_save").addEventListener("click", saveInc);
+    $("in_cancel").addEventListener("click", cancelEditInc);
+
+    // fixed
+    $("fx_save").addEventListener("click", saveFix);
+    $("fx_cancel").addEventListener("click", cancelEditFix);
+
+    // settings
+    renderSettingsUI();
+    $("save_settings").addEventListener("click", saveSettingsFromUI);
+
+    // backup
+    $("btn_export").addEventListener("click", exportJSON);
+    $("btn_import").addEventListener("click", () => $("import_file").click());
+    $("import_file").addEventListener("change", (e)=>{ const f=e.target.files?.[0]; if(f) importJSONFile(f); e.target.value=""; });
+    $("btn_clear").addEventListener("click", clearData);
+
+    switchIncomeUI();
+    renderAll();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
