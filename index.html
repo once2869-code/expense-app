@@ -322,6 +322,7 @@
     SET: "app_settings_v3",
     START: "app_start_balance_by_month_v3",
     MIG: "app_migrated_v3"
+    CAT: "app_category_rules_v1",
   };
 
   const nowYM = () => new Date().toISOString().slice(0,7);
@@ -764,6 +765,87 @@
 
     $("rep_summary").innerHTML =
       `本月收入（實領）<b>${money(incSum)}</b>，支出 <b>${money(expSum)}</b>，固定（已繳）<b>${money(fixSum)}</b>，結餘 <b>${money(incSum-expSum-fixSum)}</b>。`;
+function loadCatRules() {
+  // 使用者自定義規則（會覆蓋預設）
+  return load(KEY.CAT, {
+    // 你可以自己加： "星巴克": "飲料咖啡"
+    map: {},
+
+    // 分類詞庫（預設，之後你也能擴充）
+    dict: {
+      "飲料咖啡": ["咖啡","拿鐵","美式","星巴克","路易莎","cama","85度c","50嵐","珍奶","手搖","飲料","可可","紅茶","綠茶","奶茶"],
+      "餐飲外食": ["早餐","午餐","晚餐","宵夜","便當","麵","飯","火鍋","炸雞","滷味","小吃","餐","餐費","吃"],
+      "外送": ["ubereats","uber eats","foodpanda","熊貓","外送"],
+      "交通": ["交通","捷運","公車","計程車","uber","高鐵","火車","客運","停車","加油","油錢","機車","汽車"],
+      "採買日用品": ["全聯","家樂福","costco","好市多","大潤發","屈臣氏","康是美","日用品","衛生紙","洗髮","牙膏","清潔"],
+      "娛樂": ["電影","ktv","遊戲","steam","演唱會","展覽","娛樂"],
+      "訂閱": ["netflix","spotify","youtube","apple","icloud","訂閱","會員"],
+      "醫療": ["藥","藥局","診所","掛號","醫院","牙醫"],
+      "學習": ["書","課","補習","學費","講義","文具"],
+      "服飾": ["衣","褲","鞋","外套","包","穿搭"],
+      "人情": ["禮","紅包","禮金","喜餅","請客"],
+      "其他": []
+    },
+
+    // 店家字典（先判斷店家，再判斷品項）
+    merchants: {
+      "便利商店": ["7-11","711","全家","萊爾富","okmart","ok"],
+      "超市賣場": ["全聯","家樂福","costco","好市多","大潤發"],
+      "外送平台": ["ubereats","foodpanda","熊貓"],
+      "咖啡店": ["星巴克","路易莎","cama","85度c"]
+    }
+  });
+}
+
+function normalizeText(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g,""); // 去空白
+}
+
+function guessCategory(note) {
+  const rules = loadCatRules();
+  const raw = String(note || "").trim();
+  const t = normalizeText(raw);
+  if (!t) return { item: "未填", cat: "其他" };
+
+  // 1) 使用者自訂最優先
+  for (const k in rules.map) {
+    if (normalizeText(k) && t.includes(normalizeText(k))) {
+      return { item: k, cat: rules.map[k] };
+    }
+  }
+
+  // 2) 先判店家（更像記帳App）
+  for (const mcat in rules.merchants) {
+    const kws = rules.merchants[mcat] || [];
+    for (const kw of kws) {
+      if (t.includes(normalizeText(kw))) {
+        // 便利商店通常算餐飲/採買，看有沒有更明顯品項
+        if (mcat === "咖啡店") return { item: kw, cat: "飲料咖啡" };
+        if (mcat === "外送平台") return { item: kw, cat: "外送" };
+        if (mcat === "超市賣場") return { item: kw, cat: "採買日用品" };
+        if (mcat === "便利商店") return { item: kw, cat: "餐飲外食" };
+      }
+    }
+  }
+
+  // 3) 再判分類詞庫
+  for (const cat in rules.dict) {
+    const kws = rules.dict[cat] || [];
+    for (const kw of kws) {
+      if (kw && t.includes(normalizeText(kw))) {
+        // item 用原字串中的關鍵詞（便於統計）
+        return { item: kw, cat };
+      }
+    }
+  }
+
+  // 4) 都不命中：取前 8 字當 item
+  const item = raw.split(/[\s,，\/\-#]/).filter(Boolean)[0] || raw.slice(0,8);
+  return { item: item.slice(0,12), cat: "其他" };
+}
 
     renderItemStats(ex, expSum);
   }
@@ -797,7 +879,8 @@
   function renderItemStats(expenses, expSum) {
     const map = new Map();
     for (const x of expenses) {
-      const name = normalizeItemName(x.note);
+      const g = guessCategory(x.note);
+      const name = `${g.cat}｜${g.item}`;
       const amt = Number(x.amt||0);
       if (!map.has(name)) map.set(name, {name, count:0, sum:0});
       const o = map.get(name);
@@ -824,8 +907,26 @@
         <td class="right">${r.count}</td>
         <td class="right">${money(r.sum)}</td>
         <td class="right">${pct}%</td>`;
+        <td class="right">
+         <button class="btn-ghost" type="button" data-fixcat="${encodeURIComponent(r.name)}">修正</button>
+        </td>
       tb.appendChild(tr);
     });
+
+  tb.querySelectorAll("[data-fixcat]").forEach(btn=>{
+  btn.onclick = () => {
+    const key = decodeURIComponent(btn.getAttribute("data-fixcat"));
+    const item = key.split("｜")[1] || key; // 取 item
+    const newCat = prompt("輸入新分類（例如：飲料咖啡/交通/採買日用品/餐飲外食/其他）", "餐飲外食");
+    if (!newCat) return;
+
+    const rules = loadCatRules();
+    rules.map[item] = newCat;
+    save(KEY.CAT, rules);
+    alert(`已記住：${item} → ${newCat}`);
+    renderAll(); // 立刻重算
+  };
+});
 
     const top = rows[0];
     $("item_note").innerHTML = `本月花最多的品項是「<b>${escapeHtml(top.name)}</b>」，共 <b>${top.count}</b> 次，合計 <b>${money(top.sum)}</b>。`;
