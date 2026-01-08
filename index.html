@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>記帳整合版（穩定版含統計）</title>
@@ -911,6 +912,7 @@
     renderIncomes();
     renderFixed();
     renderBalanceAndReport();
+    renderCharts();
   }
 
   function init() {
@@ -952,9 +954,99 @@
     switchIncomeUI();
     renderAll();
   }
+// ===== Chart.js 報表（安全版，不影響按鈕）=====
+let pieChart = null;
+let barChart = null;
+
+function renderCharts() {
+  if (typeof Chart === "undefined") return; // CDN 失敗也不壞
+
+  const ym = $("month").value;
+  const expenses = load(KEY.EXP, []).filter(x => x.ym === ym);
+  const incomes  = load(KEY.INC, []).filter(x => x.ym === ym);
+  const fixed    = load(KEY.FIX, []);
+
+  // ---- 圓餅圖：支出分類 ----
+  const cats = {
+    食: ["早餐","午餐","晚餐","飲料","咖啡","餐"],
+    行: ["交通","捷運","公車","油","加油"],
+    住: ["房租","水電","電費","瓦斯","網路"],
+    樂: ["娛樂","電影","遊戲","訂閱"],
+    購物: ["購物","蝦皮","momo","衣","鞋"]
+  };
+
+  const pieData = { 食:0, 行:0, 住:0, 樂:0, 購物:0, 其他:0 };
+
+  expenses.forEach(e => {
+    const note = e.note || "";
+    let hit = false;
+    for (const k in cats) {
+      if (cats[k].some(w => note.includes(w))) {
+        pieData[k] += e.amt;
+        hit = true;
+        break;
+      }
+    }
+    if (!hit) pieData.其他 += e.amt;
+  });
+
+  const pieCtx = document.getElementById("chart_pie");
+  if (pieCtx) {
+    pieChart?.destroy();
+    pieChart = new Chart(pieCtx, {
+      type: "pie",
+      data: {
+        labels: Object.keys(pieData),
+        datasets: [{ data: Object.values(pieData) }]
+      },
+      options: { plugins:{ legend:{ position:"bottom" } } }
+    });
+  }
+
+  // ---- 長條圖：收入 vs 支出 vs 固定 ----
+  const incSum = incomes.reduce((a,b)=>a+b.amt,0);
+  const expSum = expenses.reduce((a,b)=>a+b.amt,0);
+  const fixSum = fixed
+    .filter(f => f.enabled !== false && f.paidYms?.includes(ym))
+    .reduce((a,b)=>a+b.amt,0);
+
+  const barCtx = document.getElementById("chart_bar");
+  if (barCtx) {
+    barChart?.destroy();
+    barChart = new Chart(barCtx, {
+      type: "bar",
+      data: {
+        labels: ["收入","支出","固定(已繳)"],
+        datasets: [{
+          data: [incSum, expSum, fixSum]
+        }]
+      },
+      options: {
+        plugins:{ legend:{ display:false } },
+        scales:{ y:{ beginAtZero:true } }
+      }
+    });
+  }
+}
 
   init();
+  
 })();
 </script>
+  <div class="card" style="margin-top:12px">
+  <h2>圖表分析</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div class="small">支出分類圓餅圖</div>
+      <canvas id="chart_pie" height="240"></canvas>
+    </div>
+    <div>
+      <div class="small">收支比較長條圖</div>
+      <canvas id="chart_bar" height="240"></canvas>
+    </div>
+  </div>
+</div>
+  
 </body>
 </html>
